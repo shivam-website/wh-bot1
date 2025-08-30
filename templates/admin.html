@@ -479,9 +479,10 @@
           <i class="fas fa-utensils"></i>
           <span><strong>Order Items:</strong></span>
         </div>
-        <ul class="items-list">
-          ${order.items.map(item => `<li>${item}</li>`).join('')}
-        </ul>
+          <ul class="items-list">
+            ${order.items.map(item => `<li>${item.quantity} x ${item.name}</li>`).join('')}
+          </ul>
+
         <div class="meta-item">
           <i class="fas fa-status"></i>
           <span class="status-badge status-${order.status}">${order.status}</span>
