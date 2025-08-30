@@ -2,377 +2,665 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hotel Manager - Orders</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
+    :root {
+      --primary: #3b82f6;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --dark: #1f2937;
+      --light: #f8fafc;
+      --gray: #6b7280;
+    }
     * {
       box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #f8fafc;
-      margin: 0;
-      padding: 20px;
+      background: var(--light);
       color: #333;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
+      line-height: 1.6;
+      padding: 0;
     }
-
-    h2 {
-      margin: 0;
-      font-weight: 700;
-      color: #1f2937;
-      user-select: none;
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 15px;
     }
-
-    .top-bar {
+    header {
+      background: white;
+      padding: 15px 20px;
+      border-bottom: 1px solid #e5e7eb;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-content {
       display: flex;
-      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
       gap: 15px;
-      margin-bottom: 20px;
     }
-
-    button {
-      font-size: 15px;
-      padding: 8px 16px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s;
-      user-select: none;
-      box-shadow: 0 2px 5px rgb(0 0 0 / 0.1);
-    }
-
-    button:hover:not(:disabled) {
-      box-shadow: 0 4px 8px rgb(0 0 0 / 0.15);
-      transform: scale(1.05);
-    }
-
-    button:disabled {
-      cursor: not-allowed;
-      opacity: 0.5;
-      box-shadow: none;
-    }
-
-    .done {
-      background-color: #22c55e;
-      color: white;
-    }
-
-    .done:hover {
-      background-color: #16a34a;
-    }
-
-    .rejected {
-      background-color: #ef4444;
-      color: white;
-    }
-
-    .rejected:hover {
-      background-color: #b91c1c;
-    }
-
-    .delete {
-      background-color: #6b7280;
-      color: white;
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      padding: 6px 10px;
-      font-size: 13px;
-      border-radius: 4px;
-    }
-
-    .delete:hover {
-      background-color: #374151;
-    }
-
-    .confirm {
-      background-color: #3b82f6;
-      color: white;
-    }
-
-    .confirm:hover {
-      background-color: #2563eb;
-    }
-
-    select, input[type="text"] {
-      padding: 8px 12px;
-      border-radius: 6px;
-      border: 1.5px solid #d1d5db;
-      font-size: 16px;
-      transition: border-color 0.25s ease;
-      min-width: 180px;
-    }
-
-    select:focus, input[type="text"]:focus {
-      outline: none;
-      border-color: #3b82f6;
-      box-shadow: 0 0 6px rgb(59 130 246 / 0.5);
-    }
-
-    #orderList {
+    h1 {
+      font-size: 1.5rem;
+      color: var(--dark);
       display: flex;
-      flex-direction: column;
-      gap: 15px;
+      align-items: center;
+      gap: 10px;
     }
-
-    .order {
-      background: white;
-      border-radius: 12px;
-      padding: 18px 20px 20px 20px;
-      box-shadow: 0 1px 5px rgb(0 0 0 / 0.07);
-      position: relative;
-      animation: fadeInUp 0.5s ease-in-out;
-    }
-
-    .order.new {
-      border-left: 6px solid #fbbf24;
-      background-color: #fffbeb;
-    }
-
-    .order.overdue {
-      border-left: 6px solid #ef4444;
-      background-color: #fef2f2;
-    }
-
-    @keyframes fadeInUp {
-      from {
-        transform: translateY(20px);
-        opacity: 0;
-      }
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-
-    .room {
-      font-weight: 700;
-      font-size: 20px;
-      color: #111827;
-    }
-
-    .items, .guest, .time, .status {
-      margin-top: 8px;
-      font-size: 15px;
-      color: #4b5563;
-    }
-
-    .status-tag {
-      display: inline-block;
-      padding: 3px 12px;
-      border-radius: 9999px;
-      font-weight: 600;
-      font-size: 14px;
-    }
-
-    .status-Pending {
-      background: #fbbf24;
-      color: #92400e;
-    }
-
-    .status-Confirmed {
-      background: #3b82f6;
-      color: white;
-    }
-
-    .status-Done {
-      background: #22c55e;
-      color: white;
-    }
-
-    .status-Rejected {
-      background: #ef4444;
-      color: white;
-    }
-
-    .order-buttons {
-      margin-top: 12px;
+    .controls {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
     }
-
-    @media (max-width: 600px) {
-      body {
-        padding: 15px 10px;
-      }
-      .top-bar {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      .top-bar > * {
-        width: 100%;
-      }
-      select, input[type="text"] {
-        width: 100%;
-      }
-      .order-buttons {
-        justify-content: flex-start;
-      }
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-warning { background: var(--warning); color: white; }
+    .btn-gray { background: var(--gray); color: white; }
+    .btn-sm { padding: 6px 12px; font-size: 0.85rem; }
+    .filters {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      margin: 15px 0;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      align-items: center;
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--dark);
+    }
+    select, input {
+      padding: 10px 12px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 1rem;
+      min-width: 150px;
+    }
+    input { flex: 1; min-width: 200px; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .stat-number {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+    .stat-pending { color: var(--warning); }
+    .stat-confirmed { color: var(--primary); }
+    .stat-done { color: var(--success); }
+    .stat-rejected { color: var(--danger); }
+    .stat-label {
+      font-size: 0.9rem;
+      color: var(--gray);
+      font-weight: 600;
+    }
+    #orderList {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 15px;
+    }
+    .order {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      position: relative;
+      animation: fadeIn 0.5s ease;
+      border-left: 4px solid transparent;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .order.new { border-left-color: var(--warning); background: #fffbeb; }
+    .order.overdue { border-left-color: var(--danger); background: #fef2f2; }
+    .order.confirmed { border-left-color: var(--primary); }
+    .order.done { border-left-color: var(--success); }
+    .order.rejected { border-left-color: var(--danger); }
+    .order-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+    .room {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--dark);
+    }
+    .order-id {
+      font-size: 0.8rem;
+      color: var(--gray);
+      background: #f3f4f6;
+      padding: 3px 8px;
+      border-radius: 20px;
+    }
+    .order-meta {
+      margin-bottom: 15px;
+    }
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+      font-size: 0.95rem;
+    }
+    .items-list {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+    .items-list li {
+      margin-bottom: 5px;
+      padding: 5px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .items-list li:last-child {
+      border-bottom: none;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .status-Pending { background: #fef3c7; color: #92400e; }
+    .status-Confirmed { background: #dbeafe; color: #1e40af; }
+    .status-Done { background: #dcfce7; color: #166534; }
+    .status-Rejected { background: #fee2e2; color: #991b1b; }
+    .order-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 15px;
+    }
+    .order-time {
+      font-size: 0.85rem;
+      color: var(--gray);
+      margin-top: 10px;
+      text-align: right;
+    }
+    .mobile-tabs {
+      display: none;
+      background: white;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 10px;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+      z-index: 90;
+    }
+    .tab-btn {
+      flex: 1;
+      text-align: center;
+      padding: 10px;
+      border-radius: 8px;
+      background: #f3f4f6;
+      color: var(--gray);
+      font-weight: 600;
+    }
+    .tab-btn.active {
+      background: var(--primary);
+      color: white;
+    }
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 15px 20px;
+      background: white;
+      color: var(--dark);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 1000;
+      animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .notification.success { border-left: 4px solid var(--success); }
+    .notification.error { border-left: 4px solid var(--danger); }
+    .notification.warning { border-left: 4px solid var(--warning); }
+    @media (max-width: 768px) {
+      .container { padding: 10px; }
+      .header-content { flex-direction: column; align-items: center; }
+      .controls { justify-content: center; }
+      h1 { justify-content: center; }
+      .filters { flex-direction: column; align-items: stretch; }
+      select, input { min-width: 100%; }
+      #orderList { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .desktop-only { display: none; }
+      .mobile-tabs { display: flex; justify-content: space-around; }
+    }
+    @media (max-width: 480px) {
+      .stats { grid-template-columns: 1fr; }
+      .btn span.text { display: none; }
+      .btn { padding: 10px; }
     }
   </style>
 </head>
 <body>
-  <div class="top-bar">
-    <h2>📋 Incoming Room Orders</h2>
-    <button class="delete" onclick="removeAllDone()">🗑️ Remove All Done Orders</button>
-  </div>
-
-  <div class="top-bar" style="gap:10px;">
-    <div>
-      <label for="statusFilter">Filter by status:</label>
-      <select id="statusFilter" onchange="loadOrders()">
-        <option value="all">All Orders</option>
-        <option value="Pending">Pending</option>
-        <option value="Confirmed">Confirmed</option>
-        <option value="Done">Done</option>
-        <option value="Rejected">Rejected</option>
-      </select>
+  <header>
+    <div class="header-content">
+      <h1><i class="fas fa-hotel"></i> Hotel Orders Dashboard</h1>
+      <div class="controls">
+        <button class="btn btn-primary" onclick="exportToCSV()">
+          <i class="fas fa-file-export"></i> <span class="text">Export CSV</span>
+        </button>
+        <button class="btn btn-gray" onclick="removeAllDone()">
+          <i class="fas fa-trash"></i> <span class="text">Clear Completed</span>
+        </button>
+        <button class="btn btn-success" onclick="loadOrders()">
+          <i class="fas fa-sync-alt"></i> <span class="text">Refresh</span>
+        </button>
+      </div>
     </div>
-    <input type="text" id="searchInput" placeholder="🔍 Search by room or item..." oninput="loadOrders()" />
-    <button class="confirm" onclick="exportToCSV()">📤 Export to CSV</button>
+  </header>
+
+  <div class="container">
+    <div class="filters">
+      <div class="filter-group">
+        <label for="statusFilter">Filter Status</label>
+        <select id="statusFilter" onchange="loadOrders()">
+          <option value="all">All Orders</option>
+          <option value="Pending">Pending</option>
+          <option value="Confirmed">Confirmed</option>
+          <option value="Done">Done</option>
+          <option value="Rejected">Rejected</option>
+        </select>
+      </div>
+      <div class="filter-group" style="flex: 1;">
+        <label for="searchInput">Search</label>
+        <input type="text" id="searchInput" placeholder="Search by room, items, or guest..." oninput="loadOrders()">
+      </div>
+      <div class="filter-group">
+        <label for="sortBy">Sort By</label>
+        <select id="sortBy" onchange="loadOrders()">
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="room">Room Number</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-number stat-pending" id="count-pending">0</div>
+        <div class="stat-label">Pending</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number stat-confirmed" id="count-confirmed">0</div>
+        <div class="stat-label">Confirmed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number stat-done" id="count-done">0</div>
+        <div class="stat-label">Completed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number stat-rejected" id="count-rejected">0</div>
+        <div class="stat-label">Rejected</div>
+      </div>
+    </div>
+
+    <div id="orderList">Loading orders...</div>
   </div>
 
-  <div id="orderSummary" style="margin-bottom: 15px; font-weight: 600; color: #374151;"></div>
-  <div id="orderList">Loading...</div>
+  <div class="mobile-tabs">
+    <div class="tab-btn active" onclick="changeTab('all')"><i class="fas fa-list"></i></div>
+    <div class="tab-btn" onclick="changeTab('pending')"><i class="fas fa-clock"></i></div>
+    <div class="tab-btn" onclick="changeTab('done')"><i class="fas fa-check-circle"></i></div>
+    <div class="tab-btn" onclick="changeTab('stats')"><i class="fas fa-chart-bar"></i></div>
+  </div>
 
-  <audio id="notifySound" src="https://notificationsounds.com/storage/sounds/file-sounds-1156-pristine.mp3" preload="auto"></audio>
+  <audio id="notifySound" src="https://assets.mixkit.co/sfx/preview/mixkit-alert-quick-chime-766.mp3" preload="auto"></audio>
 
   <script>
+    let allOrders = [];
     let previousPendingIds = new Set();
 
+    // Show notification function
+    function showNotification(message, type = 'success') {
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'bell'}"></i>
+        <span>${message}</span>
+      `;
+      document.body.appendChild(notification);
+      setTimeout(() => {
+        notification.remove();
+      }, 3000);
+    }
+
+    // Load orders from server
     async function loadOrders() {
       try {
-        const filter = document.getElementById('statusFilter').value;
-        const search = document.getElementById('searchInput').value.toLowerCase();
-
         const res = await fetch('/api/orders');
-        const orders = await res.json();
-        const container = document.getElementById('orderList');
-        container.innerHTML = '';
-
-        const summary = {};
-        orders.forEach(o => summary[o.status] = (summary[o.status] || 0) + 1);
-        document.getElementById('orderSummary').textContent =
-          `Total Orders: ${orders.length} | ` +
-          Object.entries(summary).map(([k,v]) => `${k}: ${v}`).join(' | ');
-
-        let filtered = filter === 'all' ? orders : orders.filter(o => o.status === filter);
-        if (search) {
-          filtered = filtered.filter(o =>
-            o.room.toLowerCase().includes(search) ||
-            o.items.some(i => i.toLowerCase().includes(search))
-          );
-        }
-
-        filtered.sort((a, b) => b.id - a.id);
-
-        const newPendingIds = new Set(filtered.filter(o => o.status === 'Pending').map(o => o.id));
-        const newOrders = [...newPendingIds].filter(id => !previousPendingIds.has(id));
-        if (newOrders.length > 0) {
-          document.getElementById('notifySound').play().catch(() => {});
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-        previousPendingIds = newPendingIds;
-
-        if (filtered.length === 0) {
-          container.innerHTML = '<p style="color:#6b7280; font-style: italic;">No matching orders found.</p>';
-          return;
-        }
-
-        filtered.forEach(order => {
-          const div = document.createElement('div');
-          div.className = 'order';
-          const minutesAgo = Math.floor((Date.now() - new Date(order.timestamp || order.time || Date.now())) / 60000);
-          const agoText = minutesAgo < 1 ? 'just now' : `${minutesAgo} min ago`;
-          const isOverdue = minutesAgo > 10;
-          if (order.status === 'Pending') div.classList.add('new');
-          if (isOverdue) div.classList.add('overdue');
-
-          div.innerHTML = `
-            <div class="room">🛏️ Room ${order.room}</div>
-            <div class="items">🧾 ${order.items.join(', ')}</div>
-            <div class="guest">📱 Guest: ${order.guestNumber || 'N/A'}</div>
-            <div class="time">🕒 Ordered: <span style="color:${isOverdue ? '#ef4444' : '#22c55e'}">${agoText}</span></div>
-            <div class="status">Status: <span class="status-tag status-${order.status}">${order.status}</span></div>
-            <div class="order-buttons">${renderButtons(order)}</div>
-            <button class="delete" onclick="deleteOrder(${order.id})">🗑️ Remove</button>
-          `;
-          container.appendChild(div);
-        });
-
+        if (!res.ok) throw new Error('Failed to fetch orders');
+        allOrders = await res.json();
+        renderOrders();
       } catch (err) {
-        document.getElementById('orderList').innerHTML = `<p style="color: #ef4444;">Error loading orders: ${err.message}</p>`;
+        showNotification('Error loading orders: ' + err.message, 'error');
         console.error(err);
       }
     }
 
-    function renderButtons(order) {
-      if (order.status === 'Pending') {
-        return `
-          <button class="confirm" onclick="updateStatus(${order.id}, 'Confirmed')">🔔 Confirm</button>
-          <button class="done" onclick="updateStatus(${order.id}, 'Done')">✔ Done</button>
-          <button class="rejected" onclick="updateStatus(${order.id}, 'Rejected')">✖ Reject</button>
-        `;
-      } else if (order.status === 'Confirmed') {
-        return `
-          <button class="done" onclick="updateStatus(${order.id}, 'Done')">✔ Done</button>
-          <button class="rejected" onclick="updateStatus(${order.id}, 'Rejected')">✖ Reject</button>
-        `;
-      } else {
-        return '';
+    // Render orders based on filters
+    function renderOrders() {
+      const filter = document.getElementById('statusFilter').value;
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const sortBy = document.getElementById('sortBy').value;
+      
+      let filtered = filter === 'all' ? allOrders : allOrders.filter(o => o.status === filter);
+      
+      if (search) {
+        filtered = filtered.filter(o =>
+          o.room.toLowerCase().includes(search) ||
+          o.items.join(' ').toLowerCase().includes(search) ||
+          (o.guestNumber && o.guestNumber.toLowerCase().includes(search))
+        );
+      }
+      
+      // Sort orders
+      switch(sortBy) {
+        case 'oldest':
+          filtered.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+          break;
+        case 'room':
+          filtered.sort((a, b) => a.room.localeCompare(b.room));
+          break;
+        default: // newest
+          filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      }
+      
+      // Update statistics
+      updateStats();
+      
+      const container = document.getElementById('orderList');
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="no-orders">No orders found matching your criteria</div>';
+        return;
+      }
+      
+      container.innerHTML = '';
+      filtered.forEach(order => {
+        const orderElement = createOrderElement(order);
+        container.appendChild(orderElement);
+      });
+      
+      // Check for new pending orders
+      const newPendingIds = new Set(allOrders.filter(o => o.status === 'Pending').map(o => o.id));
+      const newOrders = [...newPendingIds].filter(id => !previousPendingIds.has(id));
+      if (newOrders.length > 0) {
+        document.getElementById('notifySound').play().catch(() => {});
+        showNotification(`${newOrders.length} new order(s) received!`, 'warning');
+      }
+      previousPendingIds = newPendingIds;
+    }
+
+    // Create order element
+    function createOrderElement(order) {
+      const div = document.createElement('div');
+      div.className = `order ${order.status.toLowerCase()}`;
+      
+      const minutesAgo = Math.floor((Date.now() - new Date(order.timestamp)) / 60000);
+      const isNew = minutesAgo < 5 && order.status === 'Pending';
+      const isOverdue = minutesAgo > 15 && order.status === 'Pending';
+      
+      if (isNew) div.classList.add('new');
+      if (isOverdue) div.classList.add('overdue');
+      
+      div.innerHTML = `
+        <div class="order-header">
+          <div class="room">Room ${order.room}</div>
+          <div class="order-id">#${order.id}</div>
+        </div>
+        <div class="order-meta">
+          <div class="meta-item">
+            <i class="fas fa-user"></i>
+            <span>${order.guestNumber || 'Guest not specified'}</span>
+          </div>
+          <div class="meta-item">
+            <i class="fas fa-clock"></i>
+            <span>${formatTime(new Date(order.timestamp))}</span>
+          </div>
+        </div>
+        <div class="meta-item">
+          <i class="fas fa-utensils"></i>
+          <span><strong>Order Items:</strong></span>
+        </div>
+        <ul class="items-list">
+          ${order.items.map(item => `<li>${item}</li>`).join('')}
+        </ul>
+        <div class="meta-item">
+          <i class="fas fa-status"></i>
+          <span class="status-badge status-${order.status}">${order.status}</span>
+        </div>
+        <div class="order-actions">
+          ${order.status === 'Pending' ? `
+            <button class="btn btn-primary btn-sm" onclick="updateStatus(${order.id}, 'Confirmed')">
+              <i class="fas fa-check"></i> Confirm
+            </button>
+            <button class="btn btn-success btn-sm" onclick="updateStatus(${order.id}, 'Done')">
+              <i class="fas fa-check-double"></i> Complete
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="updateStatus(${order.id}, 'Rejected')">
+              <i class="fas fa-times"></i> Reject
+            </button>
+          ` : order.status === 'Confirmed' ? `
+            <button class="btn btn-success btn-sm" onclick="updateStatus(${order.id}, 'Done')">
+              <i class="fas fa-check-double"></i> Complete
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="updateStatus(${order.id}, 'Rejected')">
+              <i class="fas fa-times"></i> Reject
+            </button>
+          ` : ''}
+          <button class="btn btn-gray btn-sm" onclick="deleteOrder(${order.id})">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+        <div class="order-time">
+          ${formatTimeAgo(new Date(order.timestamp))}
+        </div>
+      `;
+      
+      return div;
+    }
+
+    // Update order status
+    async function updateStatus(id, status) {
+      try {
+        const res = await fetch(`/api/orders/${id}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
+        });
+        
+        if (!res.ok) throw new Error('Failed to update status');
+        
+        showNotification(`Order #${id} status updated to ${status}`);
+        await loadOrders();
+      } catch (err) {
+        showNotification('Error updating order: ' + err.message, 'error');
       }
     }
 
-    async function updateStatus(id, status) {
-      await fetch(`/api/orders/${id}/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-      await loadOrders();
-    }
-
+    // Delete single order
     async function deleteOrder(id) {
-      if (!confirm('Are you sure you want to remove this order?')) return;
-      await fetch(`/api/orders/${id}`, { method: 'DELETE' });
-      await loadOrders();
+      if (!confirm('Are you sure you want to delete this order?')) return;
+      
+      try {
+        const res = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete order');
+        
+        showNotification('Order deleted successfully');
+        await loadOrders();
+      } catch (err) {
+        showNotification('Error deleting order: ' + err.message, 'error');
+      }
     }
 
+    // Remove all done orders - FIXED
     async function removeAllDone() {
-      if (!confirm('Remove ALL done orders permanently?')) return;
-      await fetch('/api/orders/done', { method: 'DELETE' });
-      await loadOrders();
+      if (!confirm('Are you sure you want to remove all completed and rejected orders?')) return;
+      
+      try {
+        const res = await fetch('/api/orders/cleanup', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ statuses: ['Done', 'Rejected'] })
+        });
+        
+        if (!res.ok) throw new Error('Failed to remove orders');
+        
+        showNotification('All completed orders removed successfully');
+        await loadOrders();
+      } catch (err) {
+        showNotification('Error removing orders: ' + err.message, 'error');
+      }
     }
 
+    // Export to CSV
     function exportToCSV() {
       const rows = [['ID', 'Room', 'Items', 'Guest Number', 'Status', 'Ordered Time']];
-      document.querySelectorAll('.order').forEach(order => {
-        const id = order.querySelector('.delete')?.getAttribute('onclick')?.match(/\d+/)?.[0] || '';
-        const room = order.querySelector('.room')?.textContent.replace('🛏️ Room ', '');
-        const items = order.querySelector('.items')?.textContent.replace('🧾 ', '');
-        const guest = order.querySelector('.guest')?.textContent.replace('📱 Guest: ', '');
-        const status = order.querySelector('.status-tag')?.textContent;
-        const time = order.querySelector('.time span')?.textContent;
-        rows.push([id, room, items, guest, status, time]);
+      allOrders.forEach(order => {
+        rows.push([
+          order.id,
+          order.room,
+          order.items.join('; '),
+          order.guestNumber || 'N/A',
+          order.status,
+          new Date(order.timestamp).toLocaleString()
+        ]);
       });
+      
       const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.join(',')).join('\n');
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement('a');
       link.setAttribute('href', encodedUri);
-      link.setAttribute('download', 'orders.csv');
+      link.setAttribute('download', `orders_export_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      
+      showNotification('CSV export completed');
     }
 
+    // Update statistics
+    function updateStats() {
+      const counts = {
+        Pending: 0,
+        Confirmed: 0,
+        Done: 0,
+        Rejected: 0
+      };
+      
+      allOrders.forEach(order => {
+        if (counts.hasOwnProperty(order.status)) {
+          counts[order.status]++;
+        }
+      });
+      
+      document.getElementById('count-pending').textContent = counts.Pending;
+      document.getElementById('count-confirmed').textContent = counts.Confirmed;
+      document.getElementById('count-done').textContent = counts.Done;
+      document.getElementById('count-rejected').textContent = counts.Rejected;
+    }
+
+    // Format time ago
+    function formatTimeAgo(date) {
+      const seconds = Math.floor((new Date() - date) / 1000);
+      let interval = seconds / 31536000;
+      
+      if (interval > 1) return Math.floor(interval) + " years ago";
+      interval = seconds / 2592000;
+      if (interval > 1) return Math.floor(interval) + " months ago";
+      interval = seconds / 86400;
+      if (interval > 1) return Math.floor(interval) + " days ago";
+      interval = seconds / 3600;
+      if (interval > 1) return Math.floor(interval) + " hours ago";
+      interval = seconds / 60;
+      if (interval > 1) return Math.floor(interval) + " minutes ago";
+      return "just now";
+    }
+
+    // Format time
+    function formatTime(date) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Mobile tab change
+    function changeTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelector(`.tab-btn:nth-child(${['all', 'pending', 'done', 'stats'].indexOf(tab) + 1})`).classList.add('active');
+      
+      switch(tab) {
+        case 'pending':
+          document.getElementById('statusFilter').value = 'Pending';
+          break;
+        case 'done':
+          document.getElementById('statusFilter').value = 'Done';
+          break;
+        default:
+          document.getElementById('statusFilter').value = 'all';
+      }
+      
+      renderOrders();
+    }
+
+    // Initialize
     loadOrders();
-    setInterval(loadOrders, 5000);
+    setInterval(loadOrders, 10000); // Refresh every 10 seconds
   </script>
 </body>
 </html>
