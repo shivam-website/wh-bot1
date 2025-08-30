@@ -5,7 +5,7 @@ const path = require('path');
 
 const app = express();
 // The PORT here is for documentation. The actual listening port is set in index.js.
-const PORT = 3000; 
+const PORT = 3000;
 const DB_FILE = path.join(__dirname, 'orders.json');
 
 app.use(cors());
@@ -13,7 +13,7 @@ app.use(express.json());
 // Serve static files from the 'public' directory (e.g., admin.html)
 app.use(express.static(path.join(__dirname, 'templates')));
 
-let baileysClient = null; // Renamed from venomClient for clarity
+let baileysClient = null; // WhatsApp client
 
 /**
  * Set the Baileys client instance for WhatsApp notifications
@@ -48,7 +48,7 @@ function saveOrders(orders) {
   fs.writeFileSync(DB_FILE, JSON.stringify(orders, null, 2), 'utf-8');
 }
 
-// API Endpoint: Create a new order (Typically called by the dashboard, not the bot itself)
+// API Endpoint: Create a new order
 app.post('/api/orders', async (req, res) => {
   const { room, items, guestNumber } = req.body;
 
@@ -60,10 +60,20 @@ app.post('/api/orders', async (req, res) => {
   }
 
   const newOrder = {
-    id: Date.now(),    // timestamp-based ID
+    id: Date.now(),
     room: room.trim(),
-    items: items.map(i => i.trim()),
-    // Ensure guestNumber is in Baileys JID format (e.g., '1234567890@s.whatsapp.net')
+    items: items.map(i => {
+      if (typeof i === 'string') {
+        return { name: i.trim(), quantity: 1 };
+      }
+      if (typeof i === 'object' && i !== null) {
+        return {
+          name: (i.name || '').trim(),
+          quantity: i.quantity || 1
+        };
+      }
+      return { name: String(i), quantity: 1 };
+    }),
     guestNumber: typeof guestNumber === 'string' && guestNumber.trim() ? guestNumber.trim() : null,
     status: 'Pending',
     timestamp: new Date().toISOString(),
@@ -75,11 +85,13 @@ app.post('/api/orders', async (req, res) => {
 
   // Notify manager/admin on WhatsApp using the Baileys client
   if (baileysClient) {
-    const adminJid = '9779819809195@s.whatsapp.net'; // Admin number in Baileys JID format
-    const summary = `� *NEW ORDER*\n🆔 #${newOrder.id}\n🏨 Room: ${newOrder.room}\n🍽 Items:\n${newOrder.items.join('\n')}`;
+    const adminJid = '9779819809195@s.whatsapp.net'; // Change to your admin number
+    const itemSummary = newOrder.items.map(i => `${i.quantity} x ${i.name}`).join('\n');
+
+    const summary = `📢 *NEW ORDER*\n🆔 #${newOrder.id}\n🏨 Room: ${newOrder.room}\n🍽 Items:\n${itemSummary}`;
+
     try {
-      // Use baileysClient.sendMessage
-      await baileysClient.sendMessage(adminJid, { text: summary }); 
+      await baileysClient.sendMessage(adminJid, { text: summary });
       console.log(`📤 Notified manager of new order #${newOrder.id}`);
     } catch (err) {
       console.error('⚠️ Failed to notify manager via WhatsApp:', err.message);
@@ -95,7 +107,7 @@ app.get('/api/orders', (req, res) => {
   res.json(orders);
 });
 
-// API Endpoint: Update order status (Pending, Confirmed, Done, Rejected)
+// API Endpoint: Update order status
 app.post('/api/orders/:id/status', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { status } = req.body;
@@ -113,27 +125,29 @@ app.post('/api/orders/:id/status', async (req, res) => {
   saveOrders(orders);
 
   const order = orders[index];
-  const guestNumber = order.guestNumber; // This will already be in JID format from index.js
+  const guestNumber = order.guestNumber;
 
-  // Notify guest via WhatsApp using the Baileys client if number exists and is valid JID
+  // Notify guest via WhatsApp
   if (baileysClient && guestNumber && guestNumber.endsWith('@s.whatsapp.net')) {
+    const itemSummary = order.items.map(i => `${i.quantity} x ${i.name}`).join(', ');
     let msg = '';
+
     switch (status) {
       case 'Confirmed':
-        msg = `✅ Your order #${order.id} for ${order.items.join(', ')} has been *confirmed* and is now being prepared. Please wait.`;
+        msg = `✅ Your order #${order.id} for ${itemSummary} has been *confirmed* and is being prepared.`;
         break;
       case 'Done':
-        msg = `✅ Your order #${order.id} for ${order.items.join(', ')} has been *completed*. Thank you for staying with us!`;
+        msg = `✅ Your order #${order.id} for ${itemSummary} has been *completed*. Thank you for staying with us!`;
         break;
       case 'Rejected':
-        msg = `❌ Your order #${order.id} for ${order.items.join(', ')} was *rejected* by the manager. Please contact reception for help.`;
+        msg = `❌ Your order #${order.id} for ${itemSummary} was *rejected* by the manager. Please contact reception for help.`;
         break;
       default:
         msg = '';
     }
+
     if (msg) {
       try {
-        // Use baileysClient.sendMessage
         await baileysClient.sendMessage(guestNumber, { text: msg });
         console.log(`📩 WhatsApp update sent to guest ${guestNumber} → ${status}`);
       } catch (err) {
@@ -159,15 +173,19 @@ app.delete('/api/orders/:id', (req, res) => {
   res.json({ success: true, message: `Order ${id} deleted.` });
 });
 
-// API Endpoint: Delete all orders with status 'Done'
-app.delete('/api/orders/done', (req, res) => {
-  let orders = loadOrders();
-  const beforeCount = orders.length;
-  orders = orders.filter(order => order.status !== 'Done');
-  const removedCount = beforeCount - orders.length;
-  saveOrders(orders);
+// API Endpoint: Cleanup orders by statuses
+app.delete('/api/orders/cleanup', async (req, res) => {
+  try {
+    const { statuses } = req.body; // e.g., ['Done', 'Rejected']
+    let orders = loadOrders();
 
-  res.json({ success: true, message: `Removed ${removedCount} done orders.` });
+    orders = orders.filter(order => !statuses.includes(order.status));
+
+    saveOrders(orders);
+    res.json({ message: `Removed all orders with status: ${statuses.join(', ')}` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Error handling middleware
@@ -179,5 +197,4 @@ app.use((err, req, res, next) => {
 // Export app and client setter
 module.exports = { app, setClient };
 
-// IMPORTANT: Removed the app.listen() block here.
-// The server should only be started once in index.js.
+// NOTE: app.listen() should only be called in index.js
