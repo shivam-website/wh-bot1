@@ -1,3 +1,7 @@
+// Fix for Render: make crypto global (needed by Baileys)
+const crypto = require('crypto');
+global.crypto = crypto;
+
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -5,15 +9,15 @@ const {
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
-const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+// Removed: const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { app, setClient } = require('./server'); // Assuming your server file is separate
 
 // Hotel Configuration
 const hotelConfig = {
-  name: "Hotel Sitasharan Resort",
+  name: "Hotel Welcome",
   // IMPORTANT: Baileys uses JID format for numbers. Replace with your admin's full WhatsApp JID.
   // Example: '9779819809195@s.whatsapp.net' for a phone number or '1234567890-123456@g.us' for a group
   adminNumber: '9779819809195@s.whatsapp.net', 
@@ -51,11 +55,6 @@ const hotelConfig = {
   checkOutTime: "11:00 AM"
 };
 
-// Initialize Google Generative AI with your API key
-// API key is now directly embedded as requested.
-const genAI = new GoogleGenerativeAI("AIzaSyA6Jz2gKLDa4oX_GWDoWuUEbGjqzmeaRM4"); 
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); // Model updated to gemini-2.0-flash
-
 // Ensure orders.json database file exists
 if (!fs.existsSync(hotelConfig.databaseFile)) {
   fs.writeFileSync(hotelConfig.databaseFile, '[]');
@@ -76,6 +75,48 @@ function filterValidItems(items) {
     // Accept if item contains any valid menu item substring
     return allMenuItems.some(menuItem => lowered.includes(menuItem));
   });
+}
+
+/**
+ * Uses a rule-based system to parse the user's message.
+ * Returns an object: { intent: string, roomNumber: string|null, orderItems: string[] }
+ */
+function parseMessageWithoutAI(message) {
+  const lowerMsg = message.toLowerCase();
+  let intent = 'unknown';
+  let roomNumber = null;
+  const orderItems = [];
+
+  // 1. Check for greetings
+  if (/(hi|hello|hey|greetings)/.test(lowerMsg)) {
+    intent = 'greeting';
+  }
+
+  // 2. Check for menu request
+  if (/(menu|what's on the menu|list food|list dishes)/.test(lowerMsg)) {
+    intent = 'ask_menu';
+  }
+  
+  // 3. Check for a room number (3 or 4 digits)
+  const roomMatch = message.match(/\b\d{3,4}\b/);
+  if (roomMatch) {
+    roomNumber = roomMatch[0];
+    if (intent === 'unknown') {
+      intent = 'provide_room_only';
+    }
+  }
+
+  // 4. Check for order items
+  allMenuItems.forEach(menuItem => {
+    if (lowerMsg.includes(menuItem)) {
+      orderItems.push(menuItem);
+      if (intent === 'unknown' || intent === 'provide_room_only') {
+        intent = 'order_food';
+      }
+    }
+  });
+
+  return { intent, roomNumber, orderItems };
 }
 
 // Global variable for Baileys socket
@@ -110,8 +151,13 @@ async function startBotConnection() {
     }
     // Display QR code for initial login
     if (qr) {
-      qrcode.generate(qr, { small: true });
-      console.log('Scan the QR code above to connect your WhatsApp bot.');
+      console.log('QR code generated, visit /qr to scan');
+      // Convert QR to Data URL and serve via Express
+      QRCode.toDataURL(qr).then(url => {
+        app.get('/qr', (req, res) => {
+          res.send(`<h3>Scan this QR with your WhatsApp</h3><img src="${url}" />`);
+        });
+      });
     }
   });
 
@@ -135,7 +181,7 @@ async function startBotConnection() {
     console.log(`Received message from ${from}: ${userMsg}`);
 
     // Initialize or get user state
-    let state = userStates.get(from) || { chatHistory: [], awaitingConfirmation: false };
+    let state = userStates.get(from) || { awaitingConfirmation: false };
 
     // Handle order confirmation step
     if (state.awaitingConfirmation) {
@@ -145,8 +191,6 @@ async function startBotConnection() {
         await placeOrder(sock, from, state); // This is where the order is supposed to be placed
         state.awaitingConfirmation = false;
         delete state.items; // Clear ordered items after placing the order
-        // Optionally, if the room number should also be cleared after an order, uncomment the line below
-        // delete state.room; 
         userStates.set(from, state); // Save the updated state
         return; // Exit the message handler
       }
@@ -158,8 +202,6 @@ async function startBotConnection() {
         userStates.set(from, state);
         return;
       }
-      // If awaiting confirmation but user didn't say an obvious yes/no, let AI handle it 
-      // but remain in confirmation state. Do NOT 'return' here.
     }
 
     // Reset chat command
@@ -169,8 +211,8 @@ async function startBotConnection() {
       return;
     }
 
-    // Call AI to parse user message and detect intent, room number, and order items
-    const parsed = await parseUserMessageWithAI(userMsg, state.chatHistory);
+    // Use rule-based parsing instead of AI
+    const parsed = parseMessageWithoutAI(userMsg);
 
     // Update state with detected room number & items if any
     if (parsed.roomNumber) {
@@ -178,13 +220,7 @@ async function startBotConnection() {
     }
 
     if (parsed.orderItems && parsed.orderItems.length > 0) {
-      const filteredItems = filterValidItems(parsed.orderItems);
-      if (filteredItems.length === 0) {
-        await sock.sendMessage(from, { text: "Sorry, none of the items you mentioned are on our menu. Please choose from our menu." });
-        await sendFullMenu(sock, from);
-        return;
-      }
-      state.items = filteredItems;
+      state.items = parsed.orderItems;
     }
 
     // Handle special case: user provides room only after ordering items
@@ -195,7 +231,7 @@ async function startBotConnection() {
       return;
     }
 
-    // Handle intents from AI parser
+    // Handle intents from parser
     switch (parsed.intent) {
       case 'order_food':
         if (!state.room) {
@@ -217,79 +253,14 @@ async function startBotConnection() {
         break;
 
       default:
-        // Default fallback: AI generates a conversational reply
-        const aiReply = await getContextualAIResponse(sock, from, userMsg);
-        await sock.sendMessage(from, { text: aiReply });
+        // Default fallback: a simple hardcoded reply
+        await sock.sendMessage(from, { text: "I'm sorry, I didn't understand that. Please ask for the menu or place an order." });
         break;
     }
 
-    // Update chat history and user state
-    state.chatHistory.push({ role: 'guest', content: userMsg });
+    // Save the updated state
     userStates.set(from, state);
   });
-}
-
-/**
- * Uses Gemini AI to parse the user's message for intent, room number, and order items.
- * Returns an object: { intent: string, roomNumber: string|null, orderItems: string[] }
- */
-async function parseUserMessageWithAI(message, chatHistory) {
-  try {
-    const prompt = `
-You are an intelligent hotel concierge assistant. Analyze the guest's message and respond with a JSON object with:
-- intent: one of ["order_food", "provide_room_only", "ask_menu", "greeting", "unknown"]
-- roomNumber: 3 or 4 digit string if mentioned, else null
-- orderItems: array of strings of items guest wants to order, else empty array
-
-Guest message: """${message}"""
-
-Hotel menu items:
-${Object.values(hotelConfig.menu).flat().map(i => "- " + i.split(' - ')[0]).join('\n')}
-
-Respond ONLY with the JSON object.
-
-Example response:
-{
-  "intent": "order_food",
-  "roomNumber": "594",
-  "orderItems": ["Club Sandwich x3"]
-}
-`;
-
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }]
-        }
-      ]
-    });
-
-    const text = (await result.response).text();
-
-    // Parse the JSON from AI response
-    const jsonStart = text.indexOf('{');
-    const jsonEnd = text.lastIndexOf('}') + 1;
-    const jsonString = text.substring(jsonStart, jsonEnd);
-    const data = JSON.parse(jsonString);
-
-    // Normalize order items to just item names with quantity (remove extra chars)
-    if (Array.isArray(data.orderItems)) {
-      data.orderItems = data.orderItems.map(item => item.trim());
-    } else {
-      data.orderItems = [];
-    }
-
-    if (!data.intent) data.intent = 'unknown';
-    if (!data.roomNumber) data.roomNumber = null;
-
-    return data;
-
-  } catch (err) {
-    console.error('❌ Parsing AI error:', err);
-    // fallback
-    return { intent: 'unknown', roomNumber: null, orderItems: [] };
-  }
 }
 
 /**
@@ -355,56 +326,6 @@ async function sendFullMenu(sock, number) {
   await sock.sendMessage(number, { text: text });
 }
 
-/**
- * Gets a contextual AI reply (fallback conversational)
- * @param {object} sock - The Baileys socket instance (not directly used in this function, but passed for consistency)
- * @param {string} from - The JID of the sender
- * @param {string} prompt - The user's message
- */
-async function getContextualAIResponse(sock, from, prompt) {
-  try {
-    const state = userStates.get(from) || {};
-
-    const context = {
-      hotel: hotelConfig.name,
-      checkIn: hotelConfig.checkInTime,
-      checkOut: hotelConfig.checkOutTime,
-      menu: JSON.stringify(hotelConfig.menu),
-      services: ["room service", "housekeeping", "restaurant"],
-      language: 'en',
-      previousMessages: state.chatHistory || []
-    };
-
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: `You are the concierge at ${hotelConfig.name}. Respond in English.
-
-CONTEXT:
-${JSON.stringify(context, null, 2)}
-
-GUEST MESSAGE: "${prompt}"
-
-INSTRUCTIONS:
-Assist with food orders, check-in/out info, hotel services, and requests like towels.
-Be polite and helpful.`
-            }
-          ]
-        }
-      ]
-    });
-
-    return (await result.response).text();
-
-  } catch (err) {
-    console.error("❌ AI Error:", err);
-    return "I'm having trouble understanding. Could you please rephrase that?";
-  }
-}
-
 // Start the Express server once
 app.listen(3000, () => {
   console.log('🌐 Dashboard running at http://localhost:3000/admin.html');
@@ -412,4 +333,3 @@ app.listen(3000, () => {
 
 // Start the bot connection process
 startBotConnection();
-
