@@ -113,13 +113,13 @@ async function startBotConnection() {
 
     // Check if message ID has been processed to prevent duplicates
     if (processedMessageIds.has(msg.key.id)) {
-        return;
+      return;
     }
     processedMessageIds.add(msg.key.id);
     // Keep the Set from growing indefinitely
     if (processedMessageIds.size > 100) {
-        const oldId = processedMessageIds.values().next().value;
-        processedMessageIds.delete(oldId);
+      const oldId = processedMessageIds.values().next().value;
+      processedMessageIds.delete(oldId);
     }
 
     const from = msg.key.remoteJid;
@@ -169,6 +169,7 @@ async function startBotConnection() {
         } else if (state.items.length === 0) {
           await sock.sendMessage(from, { text: "What would you like to order? You can see our menu by typing 'menu'." });
         } else {
+          // FIXED: Correctly mapping the items to a formatted string.
           const orderSummary = state.items.map(item => `${item.quantity} x ${item.full_name}`).join(', ');
           await sock.sendMessage(from, { text: `Got it! Room: ${state.room}, Order: ${orderSummary}. Shall I place the order? Reply 'yes' or 'no'.` });
           state.awaitingConfirmation = true;
@@ -186,12 +187,13 @@ async function startBotConnection() {
         break;
 
       case 'provide_room_only':
-         if (state.items.length > 0) {
-            const orderSummary = state.items.map(item => `${item.quantity} x ${item.full_name}`).join(', ');
-            await sock.sendMessage(from, { text: `Thanks! Room number set to ${state.room}. Shall I place your order for ${orderSummary}? Reply 'yes' or 'no'.` });
-            state.awaitingConfirmation = true;
+        if (state.items.length > 0) {
+          // FIXED: Correctly mapping the items to a formatted string.
+          const orderSummary = state.items.map(item => `${item.quantity} x ${item.full_name}`).join(', ');
+          await sock.sendMessage(from, { text: `Thanks! Room number set to ${state.room}. Shall I place your order for ${orderSummary}? Reply 'yes' or 'no'.` });
+          state.awaitingConfirmation = true;
         } else {
-            await sock.sendMessage(from, { text: `Thanks! I have your room number as ${state.room}. What would you like to order?` });
+          await sock.sendMessage(from, { text: `Thanks! I have your room number as ${state.room}. What would you like to order?` });
         }
         break;
 
