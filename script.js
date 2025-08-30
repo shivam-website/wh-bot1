@@ -53,7 +53,7 @@ const hotelConfig = {
 
 // Initialize Google Generative AI with your API key
 // API key is now directly embedded as requested.
-const genAI = new GoogleGenerativeAI("AIzaSyD-5KrZqlueWgKpvlfbLDTTyNOxN9xjL7M"); 
+const genAI = new GoogleGenerativeAI("AIzaSyA6Jz2gKLDa4oX_GWDoWuUEbGjqzmeaRM4"); 
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }); // Model updated to gemini-2.0-flash
 
 // Ensure orders.json database file exists
@@ -412,3 +412,4 @@ app.listen(3000, () => {
 
 // Start the bot connection process
 startBotConnection();
+
