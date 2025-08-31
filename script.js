@@ -8,52 +8,18 @@ const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
-const { app, setClient } = require('./server'); // Assuming your server file is separate
+const { app, setClient } = require('./server');
 
 // Hotel Configuration
 const hotelConfig = {
   name: "Hotel Welcome",
-  // IMPORTANT: Baileys uses JID format for numbers. Replace with your admin's full WhatsApp JID.
-  // Example: '9779819809195@s.whatsapp.net' for a phone number or '1234567890-123456@g.us' for a group
   adminNumber: '9779819809195@s.whatsapp.net',
   receptionExtension: "22",
   databaseFile: path.join(__dirname, 'orders.json'),
-  menu: {
-    breakfast: [
-      "Continental Breakfast - ₹500",
-      "Full English Breakfast - ₹750",
-      "Pancakes with Maple Syrup - ₹450"
-    ],
-    lunch: [
-      "Grilled Chicken Sandwich - ₹650",
-      "Margherita Pizza - ₹800",
-      "Vegetable Pasta - ₹550"
-    ],
-    dinner: [
-      "Grilled Salmon - ₹1200",
-      "Beef Steak - ₹1500",
-      "Vegetable Curry - ₹600"
-    ],
-    roomService: [
-      "Club Sandwich - ₹450",
-      "Chicken Burger - ₹550",
-      "Chocolate Lava Cake - ₹350"
-    ]
-  },
-  hours: {
-    breakfast: "7:00 AM - 10:30 AM",
-    lunch: "12:00 PM - 3:00 PM",
-    dinner: "6:30 PM - 11:00 PM",
-    roomService: "24/7"
-  },
+  menuFile: path.join(__dirname, 'menu-config.json'),
   checkInTime: "2:00 PM",
   checkOutTime: "11:00 AM"
 };
-
-// Ensure orders.json database file exists
-if (!fs.existsSync(hotelConfig.databaseFile)) {
-  fs.writeFileSync(hotelConfig.databaseFile, '[]');
-}
 
 // Map to store user conversation states
 const userStates = new Map();
@@ -61,17 +27,64 @@ const userStates = new Map();
 // Set to track processed message IDs to prevent duplicates
 const processedMessageIds = new Set();
 
-// Prepare a flat list of all valid menu item names (lowercase) and prices
-const allMenuItems = Object.values(hotelConfig.menu)
-  .flat()
-  .map(item => {
-    const [name, price] = item.split(' - ');
-    return {
-      name: name.toLowerCase().trim(),
-      full_name: name.trim(),
-      price: parseInt(price.replace('₹', '').trim())
-    };
-  });
+// Function to load menu dynamically
+function loadMenuConfig() {
+  try {
+    if (fs.existsSync(hotelConfig.menuFile)) {
+      const menuData = JSON.parse(fs.readFileSync(hotelConfig.menuFile, 'utf8'));
+      return {
+        menu: menuData.menu,
+        hours: menuData.hours
+      };
+    }
+  } catch (error) {
+    console.error('Error loading menu config:', error);
+  }
+  
+  // Fallback to default menu
+  return {
+    menu: {
+      breakfast: ["Continental Breakfast - ₹500", "Full English Breakfast - ₹750", "Pancakes with Maple Syrup - ₹450"],
+      lunch: ["Grilled Chicken Sandwich - ₹650", "Margherita Pizza - ₹800", "Vegetable Pasta - ₹550"],
+      dinner: ["Grilled Salmon - ₹1200", "Beef Steak - ₹1500", "Vegetable Curry - ₹600"],
+      roomService: ["Club Sandwich - ₹450", "Chicken Burger - ₹550", "Chocolate Lava Cake - ₹350"]
+    },
+    hours: {
+      breakfast: "7:00 AM - 10:30 AM",
+      lunch: "12:00 PM - 3:00 PM",
+      dinner: "6:30 PM - 11:00 PM",
+      roomService: "24/7"
+    }
+  };
+}
+
+// Load menu dynamically
+// Function to get fresh menu items (will reload menu every time)
+function getAllMenuItems() {
+  const currentMenuConfig = loadMenuConfig();
+  
+  return Object.values(currentMenuConfig.menu)
+    .flat()
+    .map(item => {
+      const parts = item.split(' - ');
+      const name = parts[0] ? parts[0].trim() : 'Unknown Item';
+      let price = 0;
+      
+      if (parts[1]) {
+        const priceMatch = parts[1].match(/\d+/);
+        if (priceMatch) {
+          price = parseInt(priceMatch[0]);
+        }
+      }
+      
+      return {
+        name: name.toLowerCase(),
+        full_name: name,
+        price: price
+      };
+    })
+    .filter(item => item.name !== 'unknown item');
+}
 
 // Global variable for Baileys socket
 let sock = null;
@@ -82,12 +95,12 @@ async function startBotConnection() {
 
   sock = makeWASocket({
     auth: state,
-    logger: pino({ level: 'silent' }), // Suppress verbose Baileys logs
+    logger: pino({ level: 'silent' }),
   });
 
   setClient(sock);
 
-  // Handle connection updates (e.g., QR code, disconnection, reconnection)
+  // Handle connection updates
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update;
     if (connection === 'close') {
@@ -101,7 +114,6 @@ async function startBotConnection() {
     }
     if (qr) {
       qrcode.generate(qr, { small: true });
-      console.log('Scan the QR code above to connect your WhatsApp bot.');
     }
   });
 
@@ -111,34 +123,59 @@ async function startBotConnection() {
     const msg = m.messages[0];
     if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith('@g.us')) return;
 
-    // Check if message ID has been processed to prevent duplicates
+    // Check if message ID has been processed
     if (processedMessageIds.has(msg.key.id)) {
       return;
     }
     processedMessageIds.add(msg.key.id);
-    // Keep the Set from growing indefinitely
     if (processedMessageIds.size > 100) {
       const oldId = processedMessageIds.values().next().value;
       processedMessageIds.delete(oldId);
     }
 
     const from = msg.key.remoteJid;
+        // 🎯 Handle rating button responses
+        if (msg.message?.buttonsResponseMessage) {
+          const buttonId = msg.message.buttonsResponseMessage.selectedButtonId;
+    
+          if (buttonId.startsWith("rate_")) {
+            const rating = buttonId.split("_")[1]; // 1–5
+            let state = userStates.get(from);
+    
+            if (state?.awaitingRating) {
+              console.log(`⭐ Guest ${from} rated ${rating} stars for Order ${state.lastOrderId}`);
+    
+              await sock.sendMessage(from, { text: `⭐ Thanks for rating us ${rating} stars!` });
+    
+              // Optionally forward rating to admin
+              await sock.sendMessage(hotelConfig.adminNumber, { 
+                text: `📩 Guest ${from} rated Order #${state.lastOrderId}: ${rating} ⭐`
+              });
+    
+              state.awaitingRating = false;
+              userStates.set(from, state);
+            }
+            return; // stop further processing
+          }
+        }
+    
     const userMsg = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
 
     if (!userMsg) return;
     console.log(`Received message from ${from}: ${userMsg}`);
 
-    let state = userStates.get(from) || { chatHistory: [], awaitingConfirmation: false, items: [], room: null };
+    let state = userStates.get(from) || { awaitingConfirmation: false, items: [], room: null };
+    // Ensure state.items is always an array
 
     if (state.awaitingConfirmation) {
       const lowerUserMsg = userMsg.toLowerCase();
       if (lowerUserMsg.includes('yes') || lowerUserMsg.includes('confirm') || lowerUserMsg.includes('place order')) {
         await placeOrder(sock, from, state);
-        userStates.delete(from); // Clear state after successful order
+        userStates.delete(from);
         return;
       }
       if (lowerUserMsg.includes('no') || lowerUserMsg.includes('cancel')) {
-        await sock.sendMessage(from, { text: "Okay, your previous order has been cancelled. Please tell me your order again." });
+        await sock.sendMessage(from, { text: "Order cancelled. Please place a new order when ready." });
         state.awaitingConfirmation = false;
         state.items = [];
         userStates.set(from, state);
@@ -148,81 +185,81 @@ async function startBotConnection() {
 
     if (userMsg.toLowerCase() === 'reset') {
       userStates.delete(from);
-      await sock.sendMessage(from, { text: "🔄 Chat has been reset. How may I assist you today?" });
+      await sock.sendMessage(from, { text: "🔄 Chat reset. How may I assist you today?" });
       return;
     }
 
-    const { intent, roomNumber, orderItems } = parseUserMessage(userMsg);
+    // Parse the message for room number and order items
+   // Parse the message for room number and order items
+    const parsed = parseUserMessage(userMsg, state);
 
-    if (roomNumber) {
-      state.room = roomNumber;
+    // Update state with detected room number
+    if (parsed.roomNumber) {
+      state.room = parsed.roomNumber;
     }
 
-    if (orderItems && orderItems.length > 0) {
-      state.items = orderItems;
+    // Update state with detected order items (replace, not append)
+    if (parsed.orderItems && parsed.orderItems.length > 0) {
+      state.items = parsed.orderItems;
     }
 
-    switch (intent) {
-      case 'order_food':
-        if (!state.room) {
-          await sock.sendMessage(from, { text: "Could you please provide your 3 or 4-digit room number?" });
-        } else if (state.items.length === 0) {
-          await sock.sendMessage(from, { text: "What would you like to order? You can see our menu by typing 'menu'." });
-        } else {
-          // FIXED: Correctly mapping the items to a formatted string.
-          const orderSummary = state.items.map(item => `${item.quantity} x ${item.full_name}`).join(', ');
-          await sock.sendMessage(from, { text: `Got it! Room: ${state.room}, Order: ${orderSummary}. Shall I place the order? Reply 'yes' or 'no'.` });
-          state.awaitingConfirmation = true;
-        }
-        break;
-
-      case 'ask_menu':
-        await sendFullMenu(sock, from);
-        break;
-
-      case 'greeting':
-        const greetings = ["Hello!", "Hi there!", "Welcome!"];
-        const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
-        await sock.sendMessage(from, { text: `${randomGreeting} How can I assist you today at ${hotelConfig.name}?` });
-        break;
-
-      case 'provide_room_only':
-        if (state.items.length > 0) {
-          // FIXED: Correctly mapping the items to a formatted string.
-          const orderSummary = state.items.map(item => `${item.quantity} x ${item.full_name}`).join(', ');
-          await sock.sendMessage(from, { text: `Thanks! Room number set to ${state.room}. Shall I place your order for ${orderSummary}? Reply 'yes' or 'no'.` });
-          state.awaitingConfirmation = true;
-        } else {
-          await sock.sendMessage(from, { text: `Thanks! I have your room number as ${state.room}. What would you like to order?` });
-        }
-        break;
-
-      default:
-        await sock.sendMessage(from, { text: "I'm sorry, I didn't quite understand that. You can try asking about our menu, placing an order, or asking about check-in/out times." });
-        break;
+    // Handle different intents
+    if (parsed.intent === 'order') {
+      await handleOrderIntent(sock, from, state);
+    } else if (parsed.intent === 'menu') {
+      await sendFullMenu(sock, from);
+    } else if (parsed.intent === 'greeting') {
+      await sock.sendMessage(from, { text: `Hello! Welcome to ${hotelConfig.name}! 🏨\nHow can I assist you today?` });
+    } else {
+      await sock.sendMessage(from, { text: `I'm here to help you at ${hotelConfig.name}! 😊\n\nYou can type "menu" to see food options or "room [number]" to start an order.` });
     }
 
     userStates.set(from, state);
   });
 }
 
-/**
- * A rule-based function to parse user messages for intent, room number, and order items.
- * Returns an object with the detected intent, room number, and order items.
- */
-function parseUserMessage(message) {
-  const lowerMsg = message.toLowerCase();
-  const roomNumberMatch = lowerMsg.match(/\b\d{3,4}\b/);
-  const roomNumber = roomNumberMatch ? roomNumberMatch[0] : null;
+//  Parse user message without AI - using pattern matching
+function parseUserMessage(message, currentState) {
+  const text = message.toLowerCase().trim();
+  console.log('Processing message:', text);
+  
+  const result = {
+    intent: 'unknown',
+    roomNumber: null,
+    orderItems: []
+  };
 
+  // SPECIAL CASE: If user is just providing a room number (digits only)
+  // and we have pending items from previous message, treat it as room number
+  if (/^\d{3,4}$/.test(text) && currentState && currentState.items && currentState.items.length > 0) {
+    result.roomNumber = text;
+    result.intent = 'provide_room_only';
+    console.log('Special case: Room number provided for existing order:', result.roomNumber);
+    return result;
+  }
+
+  // Check for room number in normal messages
+  const roomMatch = text.match(/(room|rm|#|\b)(\d{3,4})\b/) || text.match(/\b(\d{3,4})\b/);
+  if (roomMatch) {
+    result.roomNumber = roomMatch[2] || roomMatch[1];
+    console.log('Found room:', result.roomNumber);
+  }
+
+  // Check for order items
   const itemCounts = {};
-  let foundOrderKeyword = false;
-
-  allMenuItems.forEach(item => {
-    // Regex to find item name with optional quantity
-    const itemRegex = new RegExp(`(?:(\\d+|one|two|a)\\s+)?(${item.name})`, 'gi');
-    for (const match of lowerMsg.matchAll(itemRegex)) {
-      let quantity = 1; // Default quantity if not specified
+  const menuItems = getAllMenuItems();
+  console.log('Available menu items:', menuItems.map(item => item.name));
+  
+  menuItems.forEach(item => {
+    const itemRegex = new RegExp(`(?:(\\d+|one|two|a)\\s+)?\\b(${item.name})\\b`, 'gi');
+    const matches = [...text.matchAll(itemRegex)];
+    
+    if (matches.length > 0) {
+      console.log('Found match for:', item.name, 'matches:', matches);
+    }
+    
+    for (const match of matches) {
+      let quantity = 1;
       if (match[1]) {
         if (match[1].toLowerCase() === 'one' || match[1].toLowerCase() === 'a') {
           quantity = 1;
@@ -232,16 +269,12 @@ function parseUserMessage(message) {
           quantity = parseInt(match[1]);
         }
       }
-      if (itemCounts[item.name]) {
-        itemCounts[item.name] += quantity;
-      } else {
-        itemCounts[item.name] = quantity;
-      }
+      itemCounts[item.name] = (itemCounts[item.name] || 0) + quantity;
     }
   });
 
-  const orderItems = Object.keys(itemCounts).map(itemName => {
-    const itemDetails = allMenuItems.find(item => item.name === itemName);
+  result.orderItems = Object.keys(itemCounts).map(itemName => {
+    const itemDetails = menuItems.find(item => item.name === itemName);
     return {
       name: itemDetails.name,
       full_name: itemDetails.full_name,
@@ -249,23 +282,49 @@ function parseUserMessage(message) {
     };
   });
 
-  const orderKeywords = ['order', 'get', 'like', 'have', 'bring me'];
-  if (orderKeywords.some(keyword => lowerMsg.includes(keyword)) || orderItems.length > 0) {
-    foundOrderKeyword = true;
+  console.log('Parsed order items:', result.orderItems);
+
+  // Determine intent
+  const orderKeywords = ['order', 'get', 'like', 'have', 'bring me', 'want', 'need'];
+  if (orderKeywords.some(keyword => text.includes(keyword)) || result.orderItems.length > 0) {
+    result.intent = 'order';
+  } else if (text.includes('menu') || text.includes('food') || text.includes('what do you have')) {
+    result.intent = 'menu';
+  } else if (text.includes('hello') || text.includes('hi') || text.includes('hey')) {
+    result.intent = 'greeting';
+  } else if (result.roomNumber) {
+    result.intent = 'provide_room_only';
   }
 
-  let intent = 'unknown';
-  if (lowerMsg.includes('hello') || lowerMsg.includes('hi') || lowerMsg.includes('hey')) {
-    intent = 'greeting';
-  } else if (lowerMsg.includes('menu') || lowerMsg.includes('food') || lowerMsg.includes('what do you have')) {
-    intent = 'ask_menu';
-  } else if (foundOrderKeyword) {
-    intent = 'order_food';
-  } else if (roomNumber) {
-    intent = 'provide_room_only';
+  return result;
+}
+
+/**
+ * Handle order intent
+ */
+async function handleOrderIntent(sock, from, state) {
+  // Ensure state.items is always an array
+  if (!state.items) {
+    state.items = [];
   }
 
-  return { intent, roomNumber, orderItems };
+  if (!state.room) {
+    await sock.sendMessage(from, { text: "I'd be happy to help with your order! 🍽️\n\nCould you please tell me your room number first? (Example: 'Room 105')" });
+    return;
+  }
+
+  if (state.items.length === 0) {
+    await sock.sendMessage(from, { text: "What would you like to order from our menu? You can say something like '2 pizzas and 1 coffee' or type 'menu' to see options." });
+    return;
+  }
+
+  const orderSummary = state.items.map(item => `${item.quantity} x ${item.full_name}`).join(', ');
+  await sock.sendMessage(from, { 
+    text: `Perfect! Let me confirm your order:\n\n🏨 Room: ${state.room}\n📦 Order: ${orderSummary}\n\nShould I place this order? Please reply 'yes' to confirm or 'no' to cancel.` 
+  });
+  
+  state.awaitingConfirmation = true;
+  userStates.set(from, state);
 }
 
 /**
@@ -273,7 +332,7 @@ function parseUserMessage(message) {
  */
 async function placeOrder(sock, from, state) {
   if (!state.room || state.items.length === 0) {
-    await sock.sendMessage(from, { text: "Sorry, I need both a room number and order details to place your order." });
+    await sock.sendMessage(from, { text: "Sorry, I need both room number and order details to place your order." });
     return;
   }
 
@@ -291,45 +350,67 @@ async function placeOrder(sock, from, state) {
   orders.push(newOrder);
   fs.writeFileSync(hotelConfig.databaseFile, JSON.stringify(orders, null, 2));
 
-  // Summary for the admin message
+  // Notify admin
   const orderSummaryForAdmin = newOrder.items.map(item => `${item.quantity} x ${item.name}`).join('\n');
-  await sock.sendMessage(hotelConfig.adminNumber, { text: `📢 NEW ORDER\n#${orderId}\n🏨 Room: ${state.room}\n🍽 Items:\n${orderSummaryForAdmin}` });
-
-  // Summary for the guest confirmation
-  const orderSummaryForGuest = newOrder.items.map(item => `${item.quantity} x ${item.name}`).join(', ');
-  await sock.sendMessage(from, { text: `✅ Your order #${orderId} for ${orderSummaryForGuest} has been placed! It will arrive shortly. Thank you for staying with us!` });
-
-  await sock.sendMessage(from, {
-    text: '🙏 We’d love your feedback! Please rate us:',
-    footer: 'Tap one below to rate our service.',
-    buttons: [
-      { buttonText: { displayText: '⭐ 1' }, buttonId: 'star_1' },
-      { buttonText: { displayText: '⭐ 2' }, buttonId: 'star_2' },
-      { buttonText: { displayText: '⭐ 3' }, buttonId: 'star_3' },
-      { buttonText: { displayText: '⭐ 4' }, buttonId: 'star_4' },
-      { buttonText: { displayText: '⭐ 5' }, buttonId: 'star_5' }
-    ],
-    headerType: 1
+  await sock.sendMessage(hotelConfig.adminNumber, { 
+    text: `📢 NEW ORDER\n#${orderId}\n🏨 Room: ${state.room}\n🍽 Items:\n${orderSummaryForAdmin}\n\nPlease confirm when ready.` 
   });
+
+  // Confirm to guest
+  const orderSummaryForGuest = newOrder.items.map(item => `${item.quantity} x ${item.name}`).join(', ');
+  await sock.sendMessage(from, { 
+    text: `✅ Order confirmed! #${orderId}\n\nYour order has been placed and will arrive shortly. Thank you!` 
+  });
+
+  // Ask for rating after a delay
+  setTimeout(async () => {
+    const buttons = [
+      { buttonId: 'rate_1', buttonText: { displayText: '⭐ 1' }, type: 1 },
+      { buttonId: 'rate_2', buttonText: { displayText: '⭐⭐ 2' }, type: 1 },
+      { buttonId: 'rate_3', buttonText: { displayText: '⭐⭐⭐ 3' }, type: 1 },
+      { buttonId: 'rate_4', buttonText: { displayText: '⭐⭐⭐⭐ 4' }, type: 1 },
+      { buttonId: 'rate_5', buttonText: { displayText: '⭐⭐⭐⭐⭐ 5' }, type: 1 }
+    ];
+  
+    const buttonMessage = {
+      text: '🙏 How was your experience?\n\nPlease rate our service:',
+      buttons: buttons,
+      headerType: 1
+    };
+  
+    await sock.sendMessage(from, buttonMessage);
+  
+    let state = userStates.get(from) || {};
+    state.awaitingRating = true;
+    state.lastOrderId = orderId;
+    userStates.set(from, state);
+  }, 3000);
+  
+  
 }
 
 /**
  * Sends the full hotel menu to the guest.
  */
 async function sendFullMenu(sock, number) {
+  // Reload menu fresh every time to ensure latest changes ✅
+  const currentMenuConfig = loadMenuConfig();
+  
   let text = `📋 Our Menu:\n\n`;
-  for (const category in hotelConfig.menu) {
-    text += `🍽 ${category.toUpperCase()} (${hotelConfig.hours[category]}):\n`;
-    text += hotelConfig.menu[category].map(item => `• ${item}`).join('\n') + '\n\n';
+  for (const category in currentMenuConfig.menu) {
+    text += `🍽 ${category.toUpperCase()} (${currentMenuConfig.hours[category]}):\n`;
+    text += currentMenuConfig.menu[category].map(item => `• ${item}`).join('\n') + '\n\n';
   }
-  text += "You can say things like 'I'd like to order 2 pancakes and a grilled chicken sandwich' or 'Can I get a towel?'\n";
+  text += "To order, just message: \"Room [your number], [your order]\"\nExample: \"Room 105, 2 pizzas and 1 coffee\"";
+  
   await sock.sendMessage(number, { text: text });
 }
 
-// Start the Express server
+
+// Start the server
 app.listen(3000, () => {
   console.log('🌐 Dashboard running at http://localhost:3000/admin.html');
 });
 
-// Start the bot connection process
+// Start the bot
 startBotConnection();
