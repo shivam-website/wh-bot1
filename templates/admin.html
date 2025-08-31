@@ -288,139 +288,233 @@
       .btn { padding: 10px; }
     }
     .menu-category {
-  margin-bottom: 20px;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid var(--primary);
-}
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border-left: 4px solid var(--primary);
+    }
+    .menu-category h4 {
+      margin-bottom: 10px;
+      color: var(--dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .menu-item-editor {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+    .menu-item-editor input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .hours-input {
+      width: 200px;
+      margin-top: 10px;
+    }
+    .current-menu-display {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .menu-category-display {
+      margin-bottom: 15px;
+    }
+    .menu-category-display h4 {
+      color: var(--dark);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .menu-category-display ul {
+      list-style: none;
+      padding: 0;
+    }
+    .menu-category-display li {
+      padding: 5px 0;
+      border-bottom: 1px solid #f3f4f6;
+      display: flex;
+      justify-content: between;
+    }
+    .menu-category-display li:last-child {
+      border-bottom: none;
+    }
 
-.menu-category h4 {
-  margin-bottom: 10px;
-  color: var(--dark);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+    /* --- New Login Form & Modal Styles --- */
+    .login-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: #e2e8f0;
+      flex-direction: column;
+      padding: 20px;
+    }
+    .login-card {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+    .login-card h2 {
+      font-size: 2rem;
+      margin-bottom: 10px;
+      color: var(--dark);
+    }
+    .login-card p {
+      color: var(--gray);
+      margin-bottom: 20px;
+    }
+    .login-form input {
+      width: 100%;
+      margin-bottom: 15px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    .login-form button {
+      width: 100%;
+    }
+    .error-message {
+      color: var(--danger);
+      margin-top: 10px;
+      font-weight: 600;
+    }
 
-.menu-item-editor {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 8px;
-  align-items: center;
-}
-
-.menu-item-editor input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.hours-input {
-  width: 200px;
-  margin-top: 10px;
-}
-
-.current-menu-display {
-  background: white;
-  padding: 15px;
-  border-radius: 10px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-}
-
-.menu-category-display {
-  margin-bottom: 15px;
-}
-
-.menu-category-display h4 {
-  color: var(--dark);
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.menu-category-display ul {
-  list-style: none;
-  padding: 0;
-}
-
-.menu-category-display li {
-  padding: 5px 0;
-  border-bottom: 1px solid #f3f4f6;
-  display: flex;
-  justify-content: between;
-}
-
-.menu-category-display li:last-child {
-  border-bottom: none;
-}
+    .modal {
+        display: none; /* Hidden by default */
+        position: fixed; /* Stay in place */
+        z-index: 2000; /* Sit on top */
+        left: 0;
+        top: 0;
+        width: 100%; /* Full width */
+        height: 100%; /* Full height */
+        overflow: auto; /* Enable scroll if needed */
+        background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+    }
+    .modal-content {
+        background-color: #fefefe;
+        margin: 15% auto; /* 15% from the top and centered */
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%; /* Could be more or less, depending on screen size */
+        max-width: 400px;
+        border-radius: 12px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        animation: modal-open 0.3s ease-out;
+    }
+    .modal-content h3 {
+      margin-bottom: 10px;
+      color: var(--dark);
+    }
+    .modal-content p {
+      margin-bottom: 20px;
+    }
+    .modal-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+    @keyframes modal-open {
+        from { transform: translateY(-50px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+    /* --- End New Styles --- */
   </style>
 </head>
 <body>
-  <header>
-    <div class="header-content">
-      <h1><i class="fas fa-hotel"></i> Hotel Orders Dashboard</h1>
-      <div class="controls">
-        <button class="btn btn-primary" onclick="exportToCSV()">
-          <i class="fas fa-file-export"></i> <span class="text">Export CSV</span>
-        </button>
-        <button class="btn btn-gray" onclick="removeAllDone()">
-          <i class="fas fa-trash"></i> <span class="text">Clear Completed</span>
-        </button>
-        <button class="btn btn-success" onclick="loadOrders()">
-          <i class="fas fa-sync-alt"></i> <span class="text">Refresh</span>
-        </button>
-      </div>
-    </div>
-  </header>
 
-  <div class="container">
-    <div class="filters">
-      <div class="filter-group">
-        <label for="statusFilter">Filter Status</label>
-        <select id="statusFilter" onchange="loadOrders()">
-          <option value="all">All Orders</option>
-          <option value="Pending">Pending</option>
-          <option value="Confirmed">Confirmed</option>
-          <option value="Done">Done</option>
-          <option value="Rejected">Rejected</option>
-        </select>
-      </div>
-      <div class="filter-group" style="flex: 1;">
-        <label for="searchInput">Search</label>
-        <input type="text" id="searchInput" placeholder="Search by room, items, or guest..." oninput="loadOrders()">
-      </div>
-      <div class="filter-group">
-        <label for="sortBy">Sort By</label>
-        <select id="sortBy" onchange="loadOrders()">
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-          <option value="room">Room Number</option>
-        </select>
-      </div>
+  <!-- Login Page -->
+  <div id="login-container" class="login-container">
+    <div class="login-card">
+      <h2><i class="fas fa-lock"></i> Dashboard Login</h2>
+      <p>Please enter your credentials to access the manager dashboard.</p>
+      <form id="login-form" class="login-form" onsubmit="handleLogin(event)">
+        <input type="text" id="username" placeholder="Username" required />
+        <input type="password" id="password" placeholder="Password" required />
+        <button type="submit" class="btn btn-primary">Login</button>
+      </form>
+      <div id="login-error" class="error-message" style="display: none;"></div>
     </div>
+  </div>
 
-    <div class="stats">
-      <div class="stat-card">
-        <div class="stat-number stat-pending" id="count-pending">0</div>
-        <div class="stat-label">Pending</div>
+  <!-- Main Dashboard (Initially Hidden) -->
+  <div id="dashboard-container" style="display: none;">
+    <header>
+      <div class="header-content">
+        <h1><i class="fas fa-hotel"></i> Hotel Orders Dashboard</h1>
+        <div class="controls">
+          <button class="btn btn-primary" onclick="exportToCSV()">
+            <i class="fas fa-file-export"></i> <span class="text">Export CSV</span>
+          </button>
+          <button class="btn btn-gray" onclick="removeAllDone()">
+            <i class="fas fa-trash"></i> <span class="text">Clear Completed</span>
+          </button>
+          <button class="btn btn-success" onclick="loadOrders()">
+            <i class="fas fa-sync-alt"></i> <span class="text">Refresh</span>
+          </button>
+          <button class="btn btn-danger" onclick="handleLogout()">
+            <i class="fas fa-sign-out-alt"></i> <span class="text">Logout</span>
+          </button>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-number stat-confirmed" id="count-confirmed">0</div>
-        <div class="stat-label">Confirmed</div>
+    </header>
+
+    <div class="container">
+      <div class="filters">
+        <div class="filter-group">
+          <label for="statusFilter">Filter Status</label>
+          <select id="statusFilter" onchange="loadOrders()">
+            <option value="all">All Orders</option>
+            <option value="Pending">Pending</option>
+            <option value="Confirmed">Confirmed</option>
+            <option value="Done">Done</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </div>
+        <div class="filter-group" style="flex: 1;">
+          <label for="searchInput">Search</label>
+          <input type="text" id="searchInput" placeholder="Search by room, items, or guest..." oninput="loadOrders()">
+        </div>
+        <div class="filter-group">
+          <label for="sortBy">Sort By</label>
+          <select id="sortBy" onchange="loadOrders()">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="room">Room Number</option>
+          </select>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-number stat-done" id="count-done">0</div>
-        <div class="stat-label">Completed</div>
+
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-number stat-pending" id="count-pending">0</div>
+          <div class="stat-label">Pending</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number stat-confirmed" id="count-confirmed">0</div>
+          <div class="stat-label">Confirmed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number stat-done" id="count-done">0</div>
+          <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number stat-rejected" id="count-rejected">0</div>
+          <div class="stat-label">Rejected</div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-number stat-rejected" id="count-rejected">0</div>
-        <div class="stat-label">Rejected</div>
-      </div>
-    </div>
         <!-- Menu Management Section -->
         <div class="menu-management">
           <h3 style="margin: 20px 0 15px 0; display: flex; align-items: center; gap: 10px;">
@@ -429,7 +523,7 @@
               <i class="fas fa-edit"></i> Edit Menu
             </button>
           </h3>
-    
+      
           <div id="menuEditor" style="display: none; background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
             <div id="menuCategories">
               <!-- Menu categories will be loaded here -->
@@ -444,27 +538,117 @@
               </button>
             </div>
           </div>
-    
+      
           <!-- Current Menu Display -->
           <div id="currentMenu" class="current-menu-display">
             <!-- Current menu will be displayed here -->
           </div>
         </div>
 
-    <div id="orderList">Loading orders...</div>
-  </div>
+      <div id="orderList">Loading orders...</div>
+    </div>
 
-  <div class="mobile-tabs">
-    <div class="tab-btn active" onclick="changeTab('all')"><i class="fas fa-list"></i></div>
-    <div class="tab-btn" onclick="changeTab('pending')"><i class="fas fa-clock"></i></div>
-    <div class="tab-btn" onclick="changeTab('done')"><i class="fas fa-check-circle"></i></div>
-    <div class="tab-btn" onclick="changeTab('stats')"><i class="fas fa-chart-bar"></i></div>
+    <div class="mobile-tabs">
+      <div class="tab-btn active" onclick="changeTab('all')"><i class="fas fa-list"></i></div>
+      <div class="tab-btn" onclick="changeTab('pending')"><i class="fas fa-clock"></i></div>
+      <div class="tab-btn" onclick="changeTab('done')"><i class="fas fa-check-circle"></i></div>
+      <div class="tab-btn" onclick="changeTab('stats')"><i class="fas fa-chart-bar"></i></div>
+    </div>
   </div>
   
 
   <audio id="notifySound" src="https://assets.mixkit.co/sfx/preview/mixkit-alert-quick-chime-766.mp3" preload="auto"></audio>
   
+  <!-- Custom Confirmation Modal -->
+  <div id="confirmation-modal" class="modal">
+    <div class="modal-content">
+      <h3 id="modal-title"></h3>
+      <p id="modal-message"></p>
+      <div class="modal-buttons">
+        <button id="modal-cancel" class="btn btn-gray">Cancel</button>
+        <button id="modal-confirm" class="btn btn-danger">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    // --- Login and Security Logic ---
+    const LOGIN_USERNAME = "manager";
+    const LOGIN_PASSWORD = "password123";
+    const IS_LOGGED_IN_KEY = "isLoggedIn";
+
+    const loginContainer = document.getElementById('login-container');
+    const dashboardContainer = document.getElementById('dashboard-container');
+    const loginError = document.getElementById('login-error');
+    
+    // Check if the user is already logged in on page load
+    function checkLoginStatus() {
+      if (localStorage.getItem(IS_LOGGED_IN_KEY) === 'true') {
+        showDashboard();
+      } else {
+        showLogin();
+      }
+    }
+    
+    function showDashboard() {
+      loginContainer.style.display = 'none';
+      dashboardContainer.style.display = 'block';
+      // Load the dashboard data after successful login
+      loadOrders();
+      loadCurrentMenu();
+      setInterval(loadOrders, 10000); // Refresh every 10 seconds
+    }
+    
+    function showLogin() {
+      loginContainer.style.display = 'flex';
+      dashboardContainer.style.display = 'none';
+    }
+
+    function handleLogin(event) {
+      event.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      
+      if (username === LOGIN_USERNAME && password === LOGIN_PASSWORD) {
+        localStorage.setItem(IS_LOGGED_IN_KEY, 'true');
+        showNotification('Login successful!', 'success');
+        showDashboard();
+      } else {
+        loginError.style.display = 'block';
+        loginError.textContent = 'Invalid username or password.';
+      }
+    }
+    
+    function handleLogout() {
+      localStorage.removeItem(IS_LOGGED_IN_KEY);
+      showNotification('Logged out successfully.', 'success');
+      showLogin();
+    }
+
+    // --- Custom Confirmation Modal Logic ---
+    const modal = document.getElementById('confirmation-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalMessage = document.getElementById('modal-message');
+    const modalConfirmBtn = document.getElementById('modal-confirm');
+    const modalCancelBtn = document.getElementById('modal-cancel');
+
+    // Shows the custom confirmation modal
+    function showConfirmationModal(title, message, onConfirm) {
+      modalTitle.textContent = title;
+      modalMessage.textContent = message;
+      modal.style.display = 'block';
+
+      modalConfirmBtn.onclick = () => {
+        onConfirm();
+        modal.style.display = 'none';
+      };
+
+      modalCancelBtn.onclick = () => {
+        modal.style.display = 'none';
+      };
+    }
+
+    // --- Original Dashboard Functions (Modified) ---
     let allOrders = [];
     let previousPendingIds = new Set();
 
@@ -506,7 +690,7 @@
       if (search) {
         filtered = filtered.filter(o =>
           o.room.toLowerCase().includes(search) ||
-          o.items.join(' ').toLowerCase().includes(search) ||
+          o.items.map(item => item.name).join(' ').toLowerCase().includes(search) ||
           (o.guestNumber && o.guestNumber.toLowerCase().includes(search))
         );
       }
@@ -580,7 +764,7 @@
           <span><strong>Order Items:</strong></span>
         </div>
           <ul class="items-list">
-            ${order.items.map(item => `<li>${item.quantity} x ${item.name}</li>`).join('')}
+            ${order.items.map(item => `<li>• ${item.quantity} x ${item.name}</li>`).join('')}
           </ul>
 
         <div class="meta-item">
@@ -638,85 +822,98 @@
 
     // Delete single order
     async function deleteOrder(id) {
-      if (!confirm('Are you sure you want to delete this order?')) return;
-      
-      try {
-        const res = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Failed to delete order');
-        
-        showNotification('Order deleted successfully');
-        await loadOrders();
-      } catch (err) {
-        showNotification('Error deleting order: ' + err.message, 'error');
-      }
+      showConfirmationModal(
+        'Delete Order',
+        'Are you sure you want to delete this order? This action cannot be undone.',
+        async () => {
+          try {
+            const res = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete order');
+            
+            showNotification('Order deleted successfully');
+            await loadOrders();
+          } catch (err) {
+            showNotification('Error deleting order: ' + err.message, 'error');
+          }
+        }
+      );
     }
 
     // Remove all done orders - FIXED
     async function removeAllDone() {
-      if (!confirm('Are you sure you want to remove all completed and rejected orders?')) return;
-      
-      try {
-        // Get all done and rejected orders
-        const ordersToDelete = allOrders.filter(order => 
-          order.status === 'Done' || order.status === 'Rejected'
-        );
-        
-        // Delete each order individually
-        const deletePromises = ordersToDelete.map(order => 
-          fetch(`/api/orders/${order.id}`, { method: 'DELETE' })
-        );
-        
-        // Wait for all delete operations to complete
-        const results = await Promise.allSettled(deletePromises);
-        
-        // Check if any deletions failed
-        const failedDeletes = results.filter(result => result.status === 'rejected');
-        
-        if (failedDeletes.length > 0) {
-          throw new Error(`Failed to delete ${failedDeletes.length} orders`);
+      showConfirmationModal(
+        'Clear Completed Orders',
+        'Are you sure you want to remove all completed and rejected orders?',
+        async () => {
+          try {
+            // Get all done and rejected orders
+            const ordersToDelete = allOrders.filter(order => 
+              order.status === 'Done' || order.status === 'Rejected'
+            );
+            
+            // Delete each order individually
+            const deletePromises = ordersToDelete.map(order => 
+              fetch(`/api/orders/${order.id}`, { method: 'DELETE' })
+            );
+            
+            // Wait for all delete operations to complete
+            const results = await Promise.allSettled(deletePromises);
+            
+            // Check if any deletions failed
+            const failedDeletes = results.filter(result => result.status === 'rejected');
+            
+            if (failedDeletes.length > 0) {
+              throw new Error(`Failed to delete ${failedDeletes.length} orders`);
+            }
+            
+            showNotification(`${ordersToDelete.length} completed orders removed successfully`);
+            await loadOrders(); // Refresh the order list
+          } catch (err) {
+            showNotification('Error removing orders: ' + err.message, 'error');
+          }
         }
-        
-        showNotification(`${ordersToDelete.length} completed orders removed successfully`);
-        await loadOrders(); // Refresh the order list
-      } catch (err) {
-        showNotification('Error removing orders: ' + err.message, 'error');
-      }
+      );
     }
     
     // Alternative implementation if the server supports batch deletion
     async function removeAllDoneAlternative() {
-      if (!confirm('Are you sure you want to remove all completed and rejected orders?')) return;
-      
-      try {
-        const res = await fetch('/api/orders/cleanup', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ statuses: ['Done', 'Rejected'] })
-        });
-        
-        if (!res.ok) {
-          // If the cleanup endpoint doesn't exist, try individual deletion
-          if (res.status === 404) {
-            return await removeAllDone();
+      showConfirmationModal(
+        'Clear Completed Orders',
+        'Are you sure you want to remove all completed and rejected orders?',
+        async () => {
+          try {
+            const res = await fetch('/api/orders/cleanup', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ statuses: ['Done', 'Rejected'] })
+            });
+            
+            if (!res.ok) {
+              // If the cleanup endpoint doesn't exist, try individual deletion
+              if (res.status === 404) {
+                return await removeAllDone();
+              }
+              throw new Error('Failed to remove orders');
+            }
+            
+            showNotification('All completed orders removed successfully');
+            await loadOrders();
+          } catch (err) {
+            showNotification('Error removing orders: ' + err.message, 'error');
           }
-          throw new Error('Failed to remove orders');
         }
-        
-        showNotification('All completed orders removed successfully');
-        await loadOrders();
-      } catch (err) {
-        showNotification('Error removing orders: ' + err.message, 'error');
-      }
+      );
     }
 
     // Export to CSV
     function exportToCSV() {
       const rows = [['ID', 'Room', 'Items', 'Guest Number', 'Status', 'Ordered Time']];
       allOrders.forEach(order => {
+        const itemsList = order.items.map(item => `${item.quantity}x ${item.name}`).join('; ');
         rows.push([
           order.id,
           order.room,
-          order.items.join('; '),
+          itemsList,
           order.guestNumber || 'N/A',
           order.status,
           new Date(order.timestamp).toLocaleString()
@@ -797,190 +994,169 @@
       renderOrders();
     }
 
-    // Initialize
-    loadOrders();
-    setInterval(loadOrders, 10000); // Refresh every 10 seconds
-  </script>
-  <script>
+    // --- Menu Management Functions (Unchanged) ---
     let currentMenuData = null;
 
-// Toggle menu editor visibility
-function toggleMenuEditor() {
-  const editor = document.getElementById('menuEditor');
-  const display = document.getElementById('currentMenu');
-  
-  if (editor.style.display === 'none') {
-    editor.style.display = 'block';
-    display.style.display = 'none';
-    loadMenuForEditing();
-  } else {
-    editor.style.display = 'none';
-    display.style.display = 'block';
-    loadCurrentMenu();
-  }
-}
-
-// Load menu for editing
-// Load menu for editing - IMPROVED
-async function loadMenuForEditing() {
-  try {
-    const response = await fetch('/api/menu');
-    const menuData = await response.json();
-    currentMenuData = menuData;
-    
-    const categoriesContainer = document.getElementById('menuCategories');
-    categoriesContainer.innerHTML = '';
-    
-    for (const [category, items] of Object.entries(menuData.menu)) {
-      const categoryDiv = document.createElement('div');
-      categoryDiv.className = 'menu-category';
-      categoryDiv.innerHTML = `
-        <h4><i class="fas fa-folder"></i> ${category.charAt(0).toUpperCase() + category.slice(1)}</h4>
-        <div class="items-container">
-          ${items.map((item, index) => `
-            <div class="menu-item-editor">
-              <input type="text" value="${item}" data-category="${category}" data-index="${index}" 
-                     placeholder="Item name - Price">
-              <button class="btn btn-danger btn-sm" onclick="removeMenuItem('${category}', ${index})">
-                <i class="fas fa-trash"></i>
-              </button>
-            </div>
-          `).join('')}
-        </div>
-        <div class="menu-item-editor">
-          <input type="text" id="new-${category}" placeholder="New item - Price">
-          <button class="btn btn-success btn-sm" onclick="addMenuItem('${category}')">
-            <i class="fas fa-plus"></i> Add
-          </button>
-        </div>
-        <div>
-          <label>Service Hours:</label>
-          <input type="text" class="hours-input" value="${menuData.hours[category]}" 
-                 id="hours-${category}" placeholder="e.g., 7:00 AM - 10:30 AM">
-        </div>
-      `;
-      categoriesContainer.appendChild(categoryDiv);
-    }
-  } catch (error) {
-    showNotification('Error loading menu: ' + error.message, 'error');
-  }
-}
-
-// Add new menu item
-// Add new menu item - UPDATED
-function addMenuItem(category) {
-  const input = document.getElementById(`new-${category}`);
-  const value = input.value.trim();
-  
-  if (value) {
-    // Add to the data structure
-    currentMenuData.menu[category].push(value);
-    
-    // Update the visual editor
-    const categoryDiv = document.querySelector(`.menu-category:has(#new-${category})`);
-    const itemsContainer = categoryDiv.querySelector('.items-container');
-    
-    itemsContainer.innerHTML = currentMenuData.menu[category].map((item, index) => `
-      <div class="menu-item-editor">
-        <input type="text" value="${item}" data-category="${category}" data-index="${index}" 
-               placeholder="Item name - Price">
-        <button class="btn btn-danger btn-sm" onclick="removeMenuItem('${category}', ${index})">
-          <i class="fas fa-trash"></i>
-        </button>
-      </div>
-    `).join('');
-    
-    input.value = '';
-  }
-}
-
-// Remove menu item
-// Remove menu item - FIXED VERSION
-function removeMenuItem(category, index) {
-  // Remove the item from the current menu data
-  currentMenuData.menu[category].splice(index, 1);
-  
-  // Re-index all the input elements to maintain correct data-index values
-  const categoryDiv = document.querySelector(`.menu-category:has([data-category="${category}"])`);
-  const inputs = categoryDiv.querySelectorAll('input[data-category]');
-  
-  inputs.forEach((input, newIndex) => {
-    input.setAttribute('data-index', newIndex);
-  });
-  
-  // Update the visual editor without fully reloading (smoother UX)
-  const itemsContainer = categoryDiv.querySelector('.items-container');
-  itemsContainer.innerHTML = currentMenuData.menu[category].map((item, newIndex) => `
-    <div class="menu-item-editor">
-      <input type="text" value="${item}" data-category="${category}" data-index="${newIndex}" 
-             placeholder="Item name - Price">
-      <button class="btn btn-danger btn-sm" onclick="removeMenuItem('${category}', ${newIndex})">
-        <i class="fas fa-trash"></i>
-      </button>
-    </div>
-  `).join('');
-}
-
-// Save menu
-async function saveMenu() {
-  try {
-    // Update hours from inputs
-    for (const category of Object.keys(currentMenuData.menu)) {
-      const hoursInput = document.getElementById(`hours-${category}`);
-      if (hoursInput) {
-        currentMenuData.hours[category] = hoursInput.value;
+    function toggleMenuEditor() {
+      const editor = document.getElementById('menuEditor');
+      const display = document.getElementById('currentMenu');
+      
+      if (editor.style.display === 'none') {
+        editor.style.display = 'block';
+        display.style.display = 'none';
+        loadMenuForEditing();
+      } else {
+        editor.style.display = 'none';
+        display.style.display = 'block';
+        loadCurrentMenu();
       }
     }
-    
-    const response = await fetch('/api/menu', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(currentMenuData)
-    });
-    
-    if (response.ok) {
-      showNotification('Menu updated successfully!');
-      toggleMenuEditor();
-      loadCurrentMenu();
-    } else {
-      throw new Error('Failed to save menu');
-    }
-  } catch (error) {
-    showNotification('Error saving menu: ' + error.message, 'error');
-  }
-}
 
-// Load current menu for display
-async function loadCurrentMenu() {
-  try {
-    const response = await fetch('/api/menu');
-    const menuData = await response.json();
-    
-    const menuDisplay = document.getElementById('currentMenu');
-    menuDisplay.innerHTML = '';
-    
-    for (const [category, items] of Object.entries(menuData.menu)) {
-      const categoryDiv = document.createElement('div');
-      categoryDiv.className = 'menu-category-display';
-      categoryDiv.innerHTML = `
-        <h4><i class="fas fa-folder"></i> ${category.charAt(0).toUpperCase() + category.slice(1)} 
-          <span style="font-size: 0.8em; color: var(--gray); font-weight: normal;">(${menuData.hours[category]})</span>
-        </h4>
-        <ul>
-          ${items.map(item => `<li>• ${item}</li>`).join('')}
-        </ul>
-      `;
-      menuDisplay.appendChild(categoryDiv);
+    async function loadMenuForEditing() {
+      try {
+        const response = await fetch('/api/menu');
+        const menuData = await response.json();
+        currentMenuData = menuData;
+        
+        const categoriesContainer = document.getElementById('menuCategories');
+        categoriesContainer.innerHTML = '';
+        
+        for (const [category, items] of Object.entries(menuData.menu)) {
+          const categoryDiv = document.createElement('div');
+          categoryDiv.className = 'menu-category';
+          categoryDiv.innerHTML = `
+            <h4><i class="fas fa-folder"></i> ${category.charAt(0).toUpperCase() + category.slice(1)}</h4>
+            <div class="items-container">
+              ${items.map((item, index) => `
+                <div class="menu-item-editor">
+                  <input type="text" value="${item}" data-category="${category}" data-index="${index}" 
+                      placeholder="Item name - Price">
+                  <button class="btn btn-danger btn-sm" onclick="removeMenuItem('${category}', ${index})">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+            <div class="menu-item-editor">
+              <input type="text" id="new-${category}" placeholder="New item - Price">
+              <button class="btn btn-success btn-sm" onclick="addMenuItem('${category}')">
+                <i class="fas fa-plus"></i> Add
+              </button>
+            </div>
+            <div>
+              <label>Service Hours:</label>
+              <input type="text" class="hours-input" value="${menuData.hours[category]}" 
+                      id="hours-${category}" placeholder="e.g., 7:00 AM - 10:30 AM">
+            </div>
+          `;
+          categoriesContainer.appendChild(categoryDiv);
+        }
+      } catch (error) {
+        showNotification('Error loading menu: ' + error.message, 'error');
+      }
     }
-  } catch (error) {
-    showNotification('Error loading menu: ' + error.message, 'error');
-  }
-}
 
-// Load current menu when page loads
-document.addEventListener('DOMContentLoaded', function() {
-  loadCurrentMenu();
-});
+    function addMenuItem(category) {
+      const input = document.getElementById(`new-${category}`);
+      const value = input.value.trim();
+      
+      if (value) {
+        currentMenuData.menu[category].push(value);
+        
+        const categoryDiv = document.querySelector(`.menu-category:has(#new-${category})`);
+        const itemsContainer = categoryDiv.querySelector('.items-container');
+        
+        itemsContainer.innerHTML = currentMenuData.menu[category].map((item, index) => `
+          <div class="menu-item-editor">
+            <input type="text" value="${item}" data-category="${category}" data-index="${index}" 
+                   placeholder="Item name - Price">
+            <button class="btn btn-danger btn-sm" onclick="removeMenuItem('${category}', ${index})">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        `).join('');
+        
+        input.value = '';
+      }
+    }
+
+    function removeMenuItem(category, index) {
+      currentMenuData.menu[category].splice(index, 1);
+      
+      const categoryDiv = document.querySelector(`.menu-category:has([data-category="${category}"])`);
+      const inputs = categoryDiv.querySelectorAll('input[data-category]');
+      
+      inputs.forEach((input, newIndex) => {
+        input.setAttribute('data-index', newIndex);
+      });
+      
+      const itemsContainer = categoryDiv.querySelector('.items-container');
+      itemsContainer.innerHTML = currentMenuData.menu[category].map((item, newIndex) => `
+        <div class="menu-item-editor">
+          <input type="text" value="${item}" data-category="${category}" data-index="${newIndex}" 
+                 placeholder="Item name - Price">
+          <button class="btn btn-danger btn-sm" onclick="removeMenuItem('${category}', ${newIndex})">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    async function saveMenu() {
+      try {
+        for (const category of Object.keys(currentMenuData.menu)) {
+          const hoursInput = document.getElementById(`hours-${category}`);
+          if (hoursInput) {
+            currentMenuData.hours[category] = hoursInput.value;
+          }
+        }
+        
+        const response = await fetch('/api/menu', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(currentMenuData)
+        });
+        
+        if (response.ok) {
+          showNotification('Menu updated successfully!', 'success');
+          toggleMenuEditor();
+          loadCurrentMenu();
+        } else {
+          throw new Error('Failed to save menu');
+        }
+      } catch (error) {
+        showNotification('Error saving menu: ' + error.message, 'error');
+      }
+    }
+
+    async function loadCurrentMenu() {
+      try {
+        const response = await fetch('/api/menu');
+        const menuData = await response.json();
+        
+        const menuDisplay = document.getElementById('currentMenu');
+        menuDisplay.innerHTML = '';
+        
+        for (const [category, items] of Object.entries(menuData.menu)) {
+          const categoryDiv = document.createElement('div');
+          categoryDiv.className = 'menu-category-display';
+          categoryDiv.innerHTML = `
+            <h4><i class="fas fa-folder"></i> ${category.charAt(0).toUpperCase() + category.slice(1)} 
+              <span style="font-size: 0.8em; color: var(--gray); font-weight: normal;">(${menuData.hours[category]})</span>
+            </h4>
+            <ul>
+              ${items.map(item => `<li>• ${item}</li>`).join('')}
+            </ul>
+          `;
+          menuDisplay.appendChild(categoryDiv);
+        }
+      } catch (error) {
+        showNotification('Error loading menu: ' + error.message, 'error');
+      }
+    }
+
+    // Initialize
+    checkLoginStatus();
   </script>
 </body>
 </html>
