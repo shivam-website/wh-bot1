@@ -4,9 +4,9 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-// The PORT here is for documentation. The actual listening port is set in index.js.
 const PORT = 3000;
 const DB_FILE = path.join(__dirname, 'orders.json');
+const MENU_FILE = path.join(__dirname, 'menu-config.json'); // Added menu config file
 
 app.use(cors());
 app.use(express.json());
@@ -46,6 +46,40 @@ function loadOrders() {
  */
 function saveOrders(orders) {
   fs.writeFileSync(DB_FILE, JSON.stringify(orders, null, 2), 'utf-8');
+}
+
+/**
+ * Load menu configuration from file
+ * @returns {Object} menu configuration
+ */
+function loadMenuConfig() {
+  try {
+    if (fs.existsSync(MENU_FILE)) {
+      const menuData = JSON.parse(fs.readFileSync(MENU_FILE, 'utf8'));
+      return {
+        menu: menuData.menu,
+        hours: menuData.hours
+      };
+    }
+  } catch (error) {
+    console.error('Error loading menu config:', error);
+  }
+  
+  // Fallback to default menu if config file doesn't exist
+  return {
+    menu: {
+      breakfast: ["Continental Breakfast - ₹500", "Full English Breakfast - ₹750", "Pancakes with Maple Syrup - ₹450"],
+      lunch: ["Grilled Chicken Sandwich - ₹650", "Margherita Pizza - ₹800", "Vegetable Pasta - ₹550"],
+      dinner: ["Grilled Salmon - ₹1200", "Beef Steak - ₹1500", "Vegetable Curry - ₹600"],
+      roomService: ["Club Sandwich - ₹450", "Chicken Burger - ₹550", "Chocolate Lava Cake - ₹350"]
+    },
+    hours: {
+      breakfast: "7:00 AM - 10:30 AM",
+      lunch: "12:00 PM - 3:00 PM", 
+      dinner: "6:30 PM - 11:00 PM",
+      roomService: "24/7"
+    }
+  };
 }
 
 // API Endpoint: Create a new order
@@ -185,6 +219,35 @@ app.delete('/api/orders/cleanup', async (req, res) => {
     res.json({ message: `Removed all orders with status: ${statuses.join(', ')}` });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// API Endpoint: Get current menu
+app.get('/api/menu', (req, res) => {
+  try {
+    const menuData = loadMenuConfig();
+    res.json(menuData);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load menu' });
+  }
+});
+
+// API Endpoint: Update menu
+app.post('/api/menu', (req, res) => {
+  try {
+    const { menu, hours } = req.body;
+    
+    // Validate the request
+    if (!menu || typeof menu !== 'object' || !hours || typeof hours !== 'object') {
+      return res.status(400).json({ error: 'Invalid menu data' });
+    }
+
+    // Save to file
+    fs.writeFileSync(MENU_FILE, JSON.stringify({ menu, hours }, null, 2));
+    
+    res.json({ success: true, message: 'Menu updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update menu' });
   }
 });
 
