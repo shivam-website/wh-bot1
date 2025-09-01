@@ -1,6 +1,5 @@
 const {
   default: makeWASocket,
-  useMultiFileAuthState,
   DisconnectReason
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
@@ -10,16 +9,91 @@ const fs = require('fs');
 const path = require('path');
 const { app, setClient } = require('./server');
 
+// Import the pg library to interact with PostgreSQL
+const { Client } = require('pg');
+
 // Hotel Configuration
 const hotelConfig = {
   name: "Hotel Welcome",
   adminNumber: '9779819809195@s.whatsapp.net',
   receptionExtension: "22",
-  databaseFile: path.join(__dirname, 'orders.json'),
+  databaseFile: path.join(__dirname, 'orders.json'), // This is now for legacy reference
   menuFile: path.join(__dirname, 'menu-config.json'),
   checkInTime: "2:00 PM",
   checkOutTime: "11:00 AM"
 };
+
+// --- START: PERSISTENT AUTHENTICATION & DATABASE LOGIC ---
+
+// Database client instance
+let dbClient;
+
+// Function to establish a database connection and ensure tables exist
+async function connectToDatabase() {
+    try {
+        const connectionString = process.env.DATABASE_URL || 'YOUR_NEON_POSTGRES_CONNECTION_STRING';
+        if (connectionString === 'YOUR_NEON_POSTGRES_CONNECTION_STRING') {
+            console.warn('⚠️ WARNING: Using placeholder database connection string. Please set the DATABASE_URL environment variable or update the code.');
+        }
+
+        dbClient = new Client({
+            connectionString: connectionString,
+            ssl: {
+                rejectUnauthorized: false
+            }
+        });
+        await dbClient.connect();
+        console.log('✅ Connected to PostgreSQL database.');
+
+        // Ensure auth table exists
+        await dbClient.query(`
+            CREATE TABLE IF NOT EXISTS auth_creds (
+                id VARCHAR(255) PRIMARY KEY,
+                creds JSONB NOT NULL
+            );
+        `);
+
+        // Ensure orders table exists
+        await dbClient.query(`
+            CREATE TABLE IF NOT EXISTS orders (
+                id VARCHAR(255) PRIMARY KEY,
+                room VARCHAR(255) NOT NULL,
+                guest_number VARCHAR(255) NOT NULL,
+                items JSONB NOT NULL,
+                status VARCHAR(50) NOT NULL,
+                timestamp TIMESTAMP NOT NULL
+            );
+        `);
+        console.log('✅ Database tables checked/created successfully.');
+    } catch (error) {
+        console.error('❌ Failed to connect to database or create tables:', error);
+        // Exit the process if database connection fails
+        process.exit(1);
+    }
+}
+
+// Function to load credentials from the database
+async function loadCreds() {
+    const res = await dbClient.query('SELECT creds FROM auth_creds WHERE id = $1', ['baileys-session']);
+    if (res.rows.length > 0) {
+        console.log('✅ Credentials loaded from database.');
+        return res.rows[0].creds;
+    }
+    console.log('Credentials not found in database. A new QR code will be generated.');
+    return null;
+}
+
+// Function to save credentials to the database
+async function saveCreds(newCreds) {
+    const credsJson = JSON.stringify(newCreds);
+    await dbClient.query(
+        'INSERT INTO auth_creds (id, creds) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET creds = EXCLUDED.creds',
+        ['baileys-session', credsJson]
+    );
+    console.log('📝 Credentials saved to database.');
+}
+
+// --- END: PERSISTENT AUTHENTICATION & DATABASE LOGIC ---
 
 // Map to store user conversation states
 const userStates = new Map();
@@ -58,7 +132,6 @@ function loadMenuConfig() {
   };
 }
 
-// Load menu dynamically
 // Function to get fresh menu items (will reload menu every time)
 function getAllMenuItems() {
   const currentMenuConfig = loadMenuConfig();
@@ -91,10 +164,11 @@ let sock = null;
 
 // Main function to start the bot connection
 async function startBotConnection() {
-  const { state, saveCreds } = await useMultiFileAuthState('auth');
+  await connectToDatabase();
+  const creds = await loadCreds();
 
   sock = makeWASocket({
-    auth: state,
+    auth: { creds },
     logger: pino({ level: 'silent' }),
   });
 
@@ -117,7 +191,8 @@ async function startBotConnection() {
     }
   });
 
-  sock.ev.on('creds.update', saveCreds);
+  // Call our saveCreds function when credentials are updated
+  sock.ev.on('creds.update', () => saveCreds(sock.authState.creds));
 
   sock.ev.on('messages.upsert', async m => {
     const msg = m.messages[0];
@@ -209,7 +284,7 @@ async function startBotConnection() {
     } else if (parsed.intent === 'menu') {
       await sendFullMenu(sock, from);
     } else if (parsed.intent === 'greeting') {
-      await sock.sendMessage(from, { text: `Hello! Welcome to ${hotelConfig.name}! 🏨\nHow can I assist you today?` });
+      await sock.sendMessage(from, { text: `Hello! Welcome to ${hotelConfig.name}! 🏨\nTO order a food first send the room number to bot and then send the food like order a momo ` });
     } else {
       await sock.sendMessage(from, { text: `I'm here to help you at ${hotelConfig.name}! 😊\n\nYou can type "menu" to see food options or "room [number]" to start an order.` });
     }
@@ -336,57 +411,38 @@ async function placeOrder(sock, from, state) {
     return;
   }
 
-  const orders = JSON.parse(fs.readFileSync(hotelConfig.databaseFile));
-  const orderId = Date.now();
+  const orderId = Date.now().toString(); // Use a string ID for the database
   const newOrder = {
     id: orderId,
     room: state.room,
-    items: state.items.map(item => ({ name: item.full_name, quantity: item.quantity })),
-    guestNumber: from,
+    items: JSON.stringify(state.items.map(item => ({ name: item.full_name, quantity: item.quantity }))), // Convert to JSON string for the database
+    guest_number: from,
     status: "Pending",
     timestamp: new Date().toISOString()
   };
 
-  orders.push(newOrder);
-  fs.writeFileSync(hotelConfig.databaseFile, JSON.stringify(orders, null, 2));
+  try {
+    await dbClient.query(
+      `INSERT INTO orders (id, room, guest_number, items, status, timestamp) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [newOrder.id, newOrder.room, newOrder.guest_number, newOrder.items, newOrder.status, newOrder.timestamp]
+    );
 
-  // Notify admin
-  const orderSummaryForAdmin = newOrder.items.map(item => `${item.quantity} x ${item.name}`).join('\n');
-  await sock.sendMessage(hotelConfig.adminNumber, { 
-    text: `📢 NEW ORDER\n#${orderId}\n🏨 Room: ${state.room}\n🍽 Items:\n${orderSummaryForAdmin}\n\nPlease confirm when ready.` 
-  });
+    // Notify admin
+    const orderSummaryForAdmin = state.items.map(item => `${item.quantity} x ${item.full_name}`).join('\n');
+    await sock.sendMessage(hotelConfig.adminNumber, { 
+      text: `📢 NEW ORDER\n#${orderId}\n🏨 Room: ${state.room}\n🍽 Items:\n${orderSummaryForAdmin}\n\nPlease confirm when ready.` 
+    });
 
-  // Confirm to guest
-  const orderSummaryForGuest = newOrder.items.map(item => `${item.quantity} x ${item.name}`).join(', ');
-  await sock.sendMessage(from, { 
-    text: `✅ Order confirmed! #${orderId}\n\nYour order has been placed and will arrive shortly. Thank you!` 
-  });
+    // Confirm to guest
+    const orderSummaryForGuest = state.items.map(item => `${item.quantity} x ${item.full_name}`).join(', ');
+    await sock.sendMessage(from, { 
+      text: `✅ Order confirmed! #${orderId}\n\nYour order has been placed and will arrive shortly. Thank you!` 
+    });
 
-  // Ask for rating after a delay
-  setTimeout(async () => {
-    const buttons = [
-      { buttonId: 'rate_1', buttonText: { displayText: '⭐ 1' }, type: 1 },
-      { buttonId: 'rate_2', buttonText: { displayText: '⭐⭐ 2' }, type: 1 },
-      { buttonId: 'rate_3', buttonText: { displayText: '⭐⭐⭐ 3' }, type: 1 },
-      { buttonId: 'rate_4', buttonText: { displayText: '⭐⭐⭐⭐ 4' }, type: 1 },
-      { buttonId: 'rate_5', buttonText: { displayText: '⭐⭐⭐⭐⭐ 5' }, type: 1 }
-    ];
-  
-    const buttonMessage = {
-      text: '🙏 How was your experience?\n\nPlease rate our service:',
-      buttons: buttons,
-      headerType: 1
-    };
-  
-    await sock.sendMessage(from, buttonMessage);
-  
-    let state = userStates.get(from) || {};
-    state.awaitingRating = true;
-    state.lastOrderId = orderId;
-    userStates.set(from, state);
-  }, 3000);
-  
-  
+  } catch (error) {
+    console.error('❌ Error placing order in database:', error);
+    await sock.sendMessage(from, { text: "Sorry, there was an issue placing your order. Please try again later." });
+  }
 }
 
 /**
@@ -405,7 +461,6 @@ async function sendFullMenu(sock, number) {
   
   await sock.sendMessage(number, { text: text });
 }
-
 
 // Start the server
 app.listen(3000, () => {
