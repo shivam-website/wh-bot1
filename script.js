@@ -563,9 +563,10 @@ async function placeOrder(sock, from, state) {
     `${item.quantity} x ${item.name}`
   ).join(', ');
   
-  await sock.sendMessage(from, { 
-    text: `✅ Order confirmed! #${orderId}\\n\\nYour order (${orderSummaryForGuest}) has been placed and will arrive shortly to room ${state.room}. Thank you!` 
-  });
+await sock.sendMessage(from, { 
+    text: `✅ Order confirmed! #${orderId}\nYour order (${orderSummaryForGuest}) has been placed and will arrive shortly to room ${state.room}. Thank you!` 
+});
+
 
   // Ask for rating after a delay (simulated with setTimeout)
   state.lastOrderId = orderId;
@@ -599,3 +600,4 @@ app.listen(3000, () => {
 
 // Start the bot
 startBotConnection();
+
