@@ -1,23 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { Client } = require('pg');
+const db = require('./db'); // Import the shared database module
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Initialize PostgreSQL client
-const pgClient = new Client({
-  connectionString: process.env.DATABASE_URL,
-});
-
-// Connect to the database
-async function getDbClient() {
+// Connect to the database and ensure the table exists
+async function ensureDbConnected() {
   try {
-    await pgClient.connect();
-    console.log('Connected to PostgreSQL database from server');
-    // Create orders table if it doesn't exist
-    const createTableQuery = `
+    await db.query(`
       CREATE TABLE IF NOT EXISTS orders (
         id SERIAL PRIMARY KEY,
         room VARCHAR(255) NOT NULL,
@@ -26,18 +18,15 @@ async function getDbClient() {
         status VARCHAR(50) NOT NULL,
         timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
-    `;
-    await pgClient.query(createTableQuery);
+    `);
     console.log('Orders table ensured');
-    return pgClient;
   } catch (err) {
     console.error('Database connection error:', err.stack);
-    return null;
   }
 }
 
 // Call the connection function on startup
-getDbClient();
+ensureDbConnected();
 
 app.use(cors());
 app.use(express.json());
@@ -83,12 +72,15 @@ app.get('/qr', (req, res) => {
           body { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
           h1 { color: #333; }
           img { max-width: 300px; border: 1px solid #ddd; padding: 10px; border-radius: 8px; }
+          .container { text-align: center; }
         </style>
       </head>
       <body>
-        <h1>Scan to Connect</h1>
-        <img src="${qrCode}" alt="QR Code">
-        <p>This page will automatically refresh once the bot is connected.</p>
+        <div class="container">
+          <h1>Scan to Connect</h1>
+          <img src="${qrCode}" alt="QR Code">
+          <p>This page will automatically refresh once the bot is connected.</p>
+        </div>
       </body>
       </html>
     `;
@@ -108,7 +100,7 @@ app.post('/api/orders', async (req, res) => {
   try {
     const query = 'INSERT INTO orders(room, items, guestNumber, status) VALUES($1, $2, $3, $4) RETURNING *';
     const values = [room, JSON.stringify(items), guestNumber, 'Pending'];
-    const result = await pgClient.query(query, values);
+    const result = await db.query(query, values);
     const newOrder = result.rows[0];
 
     // Notify manager/admin on WhatsApp
@@ -134,7 +126,7 @@ app.post('/api/orders', async (req, res) => {
 // API Endpoint: Get all orders
 app.get('/api/orders', async (req, res) => {
   try {
-    const result = await pgClient.query('SELECT * FROM orders ORDER BY timestamp DESC');
+    const result = await db.query('SELECT * FROM orders ORDER BY timestamp DESC');
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching orders:', err.message);
@@ -154,7 +146,7 @@ app.post('/api/orders/:id/status', async (req, res) => {
 
   try {
     const updateQuery = 'UPDATE orders SET status = $1 WHERE id = $2 RETURNING *';
-    const result = await pgClient.query(updateQuery, [status, id]);
+    const result = await db.query(updateQuery, [status, id]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Order not found.' });
@@ -198,7 +190,7 @@ app.post('/api/orders/:id/status', async (req, res) => {
 app.delete('/api/orders/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const result = await pgClient.query('DELETE FROM orders WHERE id = $1 RETURNING *', [id]);
+    const result = await db.query('DELETE FROM orders WHERE id = $1 RETURNING *', [id]);
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Order not found.' });
     }
@@ -217,7 +209,7 @@ app.delete('/api/orders/cleanup', async (req, res) => {
       return res.status(400).json({ error: 'Statuses must be a non-empty array.' });
     }
     const query = `DELETE FROM orders WHERE status = ANY($1::text[])`;
-    await pgClient.query(query, [statuses]);
+    await db.query(query, [statuses]);
     res.json({ message: `Removed all orders with status: ${statuses.join(', ')}` });
   } catch (error) {
     console.error('Error cleaning up orders:', error.message);
