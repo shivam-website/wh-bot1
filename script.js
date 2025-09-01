@@ -1,9 +1,3 @@
-// Add this at the VERY TOP of script.js
-const { webcrypto } = require('crypto');
-if (typeof globalThis.crypto === 'undefined') {
-  globalThis.crypto = webcrypto;
-}
-
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -38,7 +32,7 @@ if (!fs.existsSync(hotelConfig.databaseFile)) {
   fs.writeFileSync(hotelConfig.databaseFile, JSON.stringify([]));
 }
 
-// Function to load menu dynamically
+// Function to load menu dynamically from a file
 function loadMenuConfig() {
   try {
     if (fs.existsSync(hotelConfig.menuFile)) {
@@ -52,8 +46,8 @@ function loadMenuConfig() {
   } catch (error) {
     console.error('Error loading menu config:', error);
   }
-  
-  // Fallback to default menu
+
+  // Fallback to default menu if the file is not found or is invalid
   return {
     menu: {
       breakfast: ["Continental Breakfast - ₹500", "Full English Breakfast - ₹750", "Pancakes with Maple Syrup - ₹450"],
@@ -71,7 +65,7 @@ function loadMenuConfig() {
   };
 }
 
-// Function to get fresh menu items (will reload menu every time)
+// Function to get a fresh list of all menu items, including price and category
 function getAllMenuItems() {
   const currentMenuConfig = loadMenuConfig();
   
@@ -110,7 +104,7 @@ async function startBotConnection() {
 
   sock = makeWASocket({
     auth: state,
-    logger: pino({ level: 'silent' }),
+    logger: pino({ level: 'silent' }), // Suppress Baileys logs
   });
 
   setClient(sock);
@@ -132,13 +126,15 @@ async function startBotConnection() {
     }
   });
 
+  // Save authentication credentials
   sock.ev.on('creds.update', saveCreds);
 
+  // Handle incoming messages
   sock.ev.on('messages.upsert', async m => {
     const msg = m.messages[0];
     if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith('@g.us')) return;
 
-    // Check if message ID has been processed
+    // Check if message ID has been processed to prevent duplicates
     if (processedMessageIds.has(msg.key.id)) {
       return;
     }
@@ -201,14 +197,16 @@ async function startBotConnection() {
       }
     }
 
+    // Get the user's message text
     const userMsg = msg.message.conversation || 
-                   msg.message.extendedTextMessage?.text || 
-                   (msg.message.buttonsResponseMessage ? msg.message.buttonsResponseMessage.selectedButtonId : '') || 
-                   '';
+                      msg.message.extendedTextMessage?.text || 
+                      (msg.message.buttonsResponseMessage ? msg.message.buttonsResponseMessage.selectedButtonId : '') || 
+                      '';
 
     if (!userMsg) return;
     console.log(`Received message from ${from}: ${userMsg}`);
 
+    // Retrieve or initialize the user's state
     let state = userStates.get(from) || { 
       awaitingConfirmation: false, 
       items: [], 
@@ -276,9 +274,12 @@ async function startBotConnection() {
     // Update state with detected room number
     if (parsed.roomNumber) {
       state.room = parsed.roomNumber;
-      await sock.sendMessage(from, { 
-        text: `✅ Room ${parsed.roomNumber} noted. What would you like to order?`
-      });
+      // Only send confirmation if items were also detected
+      if (parsed.orderItems.length === 0) {
+        await sock.sendMessage(from, { 
+          text: `✅ Room ${parsed.roomNumber} noted. What would you like to order?`
+        });
+      }
     }
 
     // Update state with detected order items
@@ -290,11 +291,16 @@ async function startBotConnection() {
     if (parsed.intent === 'order') {
       await handleOrderIntent(sock, from, state);
     } else if (parsed.intent === 'menu') {
-      await showMenuCategories(sock, from);
+      // Send the full menu immediately when someone asks for menu
+      await sendFullMenu(sock, from);
     } else if (parsed.intent === 'greeting') {
       await sendWelcomeMessage(sock, from);
+    } else if (parsed.intent === 'thanks') {
+      await sock.sendMessage(from, {
+        text: "You're most welcome! Is there anything else I can help you with?"
+      });
     } else if (parsed.intent === 'provide_room_only') {
-      // Already handled above
+      // Handled above
     } else {
       await sock.sendMessage(from, { 
         text: `I'm here to help you at ${hotelConfig.name}! 😊\n\nYou can:\n• Type "menu" to see food options\n• Provide your room number and order\n• Type "help" for assistance\n• Type "status" to check your order\n• Type "reset" to start over`
@@ -336,7 +342,7 @@ async function showMenuCategories(sock, from) {
   }));
   
   await sock.sendMessage(from, {
-    text: '📋 Please select a menu category:',
+    text: '📋 Please select whatever u like to order from the menu:',
     buttons: buttons,
     headerType: 1
   });
@@ -358,6 +364,27 @@ async function sendMenuCategory(sock, from, category) {
   await sock.sendMessage(from, { text: text });
 }
 
+// Send the full menu (all categories at once)
+async function sendFullMenu(sock, from) {
+  const currentMenuConfig = loadMenuConfig();
+  
+  let text = `🍽 ${hotelConfig.name} Menu\n\n`;
+  
+  for (const category of currentMenuConfig.categories) {
+    text += `📋 ${category.charAt(0).toUpperCase() + category.slice(1)} (${currentMenuConfig.hours[category]}):\n`;
+    text += currentMenuConfig.menu[category].map(item => `• ${item}`).join('\n') + '\n\n';
+  }
+  
+  text += "To order, just message: \"Room [your number], [your order]\"\nExample: \"Room 105, 2 pizzas and 1 coffee\"\n\n";
+  text += "You can also browse specific categories using the buttons below:";
+  
+  // Send the full menu text first
+  await sock.sendMessage(from, { text: text });
+  
+  // Then send the category selection buttons
+  await showMenuCategories(sock, from);
+}
+
 // Parse user message without AI - using pattern matching
 function parseUserMessage(message, currentState) {
   const text = message.toLowerCase().trim();
@@ -369,16 +396,8 @@ function parseUserMessage(message, currentState) {
     orderItems: []
   };
 
-  // SPECIAL CASE: If user is just providing a room number (digits only)
-  if (/^\d{3,4}$/.test(text) && currentState && currentState.items && currentState.items.length > 0) {
-    result.roomNumber = text;
-    result.intent = 'provide_room_only';
-    console.log('Special case: Room number provided for existing order:', result.roomNumber);
-    return result;
-  }
-
-  // Check for room number in normal messages
-  const roomMatch = text.match(/(room|rm|#|\b)(\d{3,4})\b/) || text.match(/\b(\d{3,4})\b/);
+  // Check for room number
+  const roomMatch = text.match(/(room|rm|#|\b)(\d{3,4})\b/);
   if (roomMatch) {
     result.roomNumber = roomMatch[2] || roomMatch[1];
     console.log('Found room:', result.roomNumber);
@@ -390,6 +409,7 @@ function parseUserMessage(message, currentState) {
   console.log('Available menu items:', menuItems.map(item => item.name));
   
   menuItems.forEach(item => {
+    // Regex to match item name with optional quantity prefix
     const itemRegex = new RegExp(`(?:(\\d+|one|two|three|four|five|a|an)\\s+)?\\b(${item.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
     const matches = [...text.matchAll(itemRegex)];
     
@@ -433,13 +453,19 @@ function parseUserMessage(message, currentState) {
 
   // Determine intent
   const orderKeywords = ['order', 'get', 'like', 'have', 'bring me', 'want', 'need', 'i\'d like'];
+  const menuKeywords = ['menu', 'food', 'what do you have', 'offer'];
+  const greetingKeywords = ['hello', 'hi', 'hey', 'good'];
+  const thanksKeywords = ['thanks', 'thank you', 'cheers'];
+
   if (orderKeywords.some(keyword => text.includes(keyword)) || result.orderItems.length > 0) {
     result.intent = 'order';
-  } else if (text.includes('menu') || text.includes('food') || text.includes('what do you have') || text.includes('offer')) {
+  } else if (menuKeywords.some(keyword => text.includes(keyword))) {
     result.intent = 'menu';
-  } else if (text.includes('hello') || text.includes('hi') || text.includes('hey') || text.includes('good')) {
+  } else if (greetingKeywords.some(keyword => text.includes(keyword))) {
     result.intent = 'greeting';
-  } else if (result.roomNumber) {
+  } else if (thanksKeywords.some(keyword => text.includes(keyword))) {
+    result.intent = 'thanks';
+  } else if (result.roomNumber && result.orderItems.length === 0) {
     result.intent = 'provide_room_only';
   }
 
