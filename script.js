@@ -1,3 +1,9 @@
+// Add this at the VERY TOP of script.js
+const { webcrypto } = require('crypto');
+if (typeof globalThis.crypto === 'undefined') {
+  globalThis.crypto = webcrypto;
+}
+
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -284,8 +290,7 @@ async function startBotConnection() {
     if (parsed.intent === 'order') {
       await handleOrderIntent(sock, from, state);
     } else if (parsed.intent === 'menu') {
-      // Send the full menu immediately when someone asks for menu
-      await sendFullMenu(sock, from);
+      await showMenuCategories(sock, from);
     } else if (parsed.intent === 'greeting') {
       await sendWelcomeMessage(sock, from);
     } else if (parsed.intent === 'provide_room_only') {
@@ -331,7 +336,7 @@ async function showMenuCategories(sock, from) {
   }));
   
   await sock.sendMessage(from, {
-    text: '📋 Please select whatever u like to order from the menu:',
+    text: '📋 Please select a menu category:',
     buttons: buttons,
     headerType: 1
   });
@@ -351,27 +356,6 @@ async function sendMenuCategory(sock, from, category) {
   text += `\n\nTo order, just message: "Room [your number], [item name]"\nExample: "Room 105, 2 pizzas"`;
   
   await sock.sendMessage(from, { text: text });
-}
-
-// Send the full menu (all categories at once)
-async function sendFullMenu(sock, from) {
-  const currentMenuConfig = loadMenuConfig();
-  
-  let text = `🍽 ${hotelConfig.name} Menu\n\n`;
-  
-  for (const category of currentMenuConfig.categories) {
-    text += `📋 ${category.charAt(0).toUpperCase() + category.slice(1)} (${currentMenuConfig.hours[category]}):\n`;
-    text += currentMenuConfig.menu[category].map(item => `• ${item}`).join('\n') + '\n\n';
-  }
-  
-  text += "To order, just message: \"Room [your number], [your order]\"\nExample: \"Room 105, 2 pizzas and 1 coffee\"\n\n";
-  text += "You can also browse specific categories using the buttons below:";
-  
-  // Send the full menu text first
-  await sock.sendMessage(from, { text: text });
-  
-  // Then send the category selection buttons
-  await showMenuCategories(sock, from);
 }
 
 // Parse user message without AI - using pattern matching
