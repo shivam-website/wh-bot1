@@ -387,7 +387,7 @@ async function sendFullMenu(sock, from) {
 
 // Parse user message without AI - using pattern matching
 function parseUserMessage(message, currentState) {
-  const text = message.toLowerCase().trim();
+  let text = message.toLowerCase().trim();
   console.log('Processing message:', text);
   
   const result = {
@@ -400,6 +400,8 @@ function parseUserMessage(message, currentState) {
   const roomMatch = text.match(/(room|rm|#|\b)(\d{3,4})\b/);
   if (roomMatch) {
     result.roomNumber = roomMatch[2] || roomMatch[1];
+    // Remove room number from message to avoid confusion
+    text = text.replace(roomMatch[0], '');
     console.log('Found room:', result.roomNumber);
   }
 
@@ -407,7 +409,7 @@ function parseUserMessage(message, currentState) {
   const itemCounts = {};
   const menuItems = getAllMenuItems();
 
-  // FIX: Sort menu items by length to find the most specific match first
+  // Sort menu items by length to find the most specific match first
   menuItems.sort((a, b) => b.name.length - a.name.length);
   
   console.log('Available menu items (sorted):', menuItems.map(item => item.name));
@@ -438,10 +440,10 @@ function parseUserMessage(message, currentState) {
           }
         }
         itemCounts[item.name] = (itemCounts[item.name] || 0) + quantity;
+        
+        // Replace the matched text to prevent it from being counted again
+        text = text.replace(match[0], ' '.repeat(match[0].length));
       }
-      
-      // We will continue the loop to find all matches, not just the first one.
-      // The sorting ensures we prioritize specific items.
     }
   }
 
