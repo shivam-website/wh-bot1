@@ -6,10 +6,10 @@ const {
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
-const qrcode = require('qrcode');
+const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
-const { app, setClient, setQrCode } = require('./server');
+const { app, setClient } = require('./server');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { Client } = require('pg');
 
@@ -74,8 +74,6 @@ const logger = pino({ level: 'info' });
  */
 async function handleOpenConnection(sock) {
   console.log("✅ Bot is connected and ready!");
-  // Clear the QR code from the server since the connection is now open
-  setQrCode(null);
   // You can add more logic here, such as sending a notification message to the admin.
 }
 
@@ -84,7 +82,7 @@ async function connectToWhatsApp() {
 
   const sock = makeWASocket({
     logger,
-    printQRInTerminal: false,
+    printQRInTerminal: true,
     browser: ['Hotel Bot', 'Safari', '1.0'],
     auth: state
   });
@@ -123,13 +121,8 @@ async function connectToWhatsApp() {
 
     if (qr) {
       console.log('Generating QR code...');
-      qrcode.toDataURL(qr, (err, url) => {
-        if (err) {
-          console.error('Failed to generate QR code URL:', err);
-          return;
-        }
-        setQrCode(url);
-        console.log('QR code is now available at the /qr endpoint of your service.');
+      qrcode.generate(qr, { small: true }, (url) => {
+        console.log('Scan the QR code above to log in.');
       });
     }
   });
