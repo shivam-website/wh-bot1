@@ -165,11 +165,21 @@ let sock = null;
 // Main function to start the bot connection
 async function startBotConnection() {
   await connectToDatabase();
-  const creds = await loadCreds() || {}; // <== FIX: Provide an empty object if no credentials are found
 
+  // Load credentials from the database
+  const creds = await loadCreds() || {};
+
+  // FIX: Provide the correct auth object structure to makeWASocket
+  // The 'auth' property needs to be an object with both the 'creds' and the 'saveCreds' function.
+  // This is the proper way to use a custom authentication store with baileys.
   sock = makeWASocket({
-    auth: { creds },
+    auth: {
+        creds: creds,
+        saveCreds: () => saveCreds(sock.authState.creds)
+    },
     logger: pino({ level: 'silent' }),
+    browser: ['Chrome (Linux)', '', ''], // This is required for Baileys to work correctly on a server
+    isMobile: false // Prevents the mobile login error message
   });
 
   setClient(sock);
@@ -192,7 +202,8 @@ async function startBotConnection() {
   });
 
   // Call our saveCreds function when credentials are updated
-  sock.ev.on('creds.update', () => saveCreds(sock.authState.creds));
+  // NOTE: This is now handled by the `auth` object above, but it's good practice to keep the event listener for redundancy.
+  // sock.ev.on('creds.update', () => saveCreds(sock.authState.creds));
 
   sock.ev.on('messages.upsert', async m => {
     const msg = m.messages[0];
