@@ -5,7 +5,7 @@ const {
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
-const qrcode = require('qrcode-terminal');
+const qrcode = require('qrcode'); // Corrected library
 const fs = require('fs');
 const path = require('path');
 const { app, setClient } = require('./server');
