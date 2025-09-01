@@ -406,39 +406,50 @@ function parseUserMessage(message, currentState) {
   // Check for order items
   const itemCounts = {};
   const menuItems = getAllMenuItems();
-  console.log('Available menu items:', menuItems.map(item => item.name));
+
+  // FIX: Sort menu items by length to find the most specific match first
+  menuItems.sort((a, b) => b.name.length - a.name.length);
   
-  menuItems.forEach(item => {
-    // Regex to match item name with optional quantity prefix
+  console.log('Available menu items (sorted):', menuItems.map(item => item.name));
+  
+  for (const item of menuItems) {
     const itemRegex = new RegExp(`(?:(\\d+|one|two|three|four|five|a|an)\\s+)?\\b(${item.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
     const matches = [...text.matchAll(itemRegex)];
     
     if (matches.length > 0) {
       console.log('Found match for:', item.name, 'matches:', matches);
-    }
-    
-    for (const match of matches) {
-      let quantity = 1;
-      if (match[1]) {
-        const quantityText = match[1].toLowerCase();
-        if (quantityText === 'one' || quantityText === 'a' || quantityText === 'an') {
-          quantity = 1;
-        } else if (quantityText === 'two') {
-          quantity = 2;
-        } else if (quantityText === 'three') {
-          quantity = 3;
-        } else if (quantityText === 'four') {
-          quantity = 4;
-        } else if (quantityText === 'five') {
-          quantity = 5;
-        } else {
-          quantity = parseInt(match[1]);
+      
+      for (const match of matches) {
+        let quantity = 1;
+        if (match[1]) {
+          const quantityText = match[1].toLowerCase();
+          if (quantityText === 'one' || quantityText === 'a' || quantityText === 'an') {
+            quantity = 1;
+          } else if (quantityText === 'two') {
+            quantity = 2;
+          } else if (quantityText === 'three') {
+            quantity = 3;
+          } else if (quantityText === 'four') {
+            quantity = 4;
+          } else if (quantityText === 'five') {
+            quantity = 5;
+          } else {
+            quantity = parseInt(match[1]);
+          }
         }
+        itemCounts[item.name] = (itemCounts[item.name] || 0) + quantity;
       }
-      itemCounts[item.name] = (itemCounts[item.name] || 0) + quantity;
+      
+      // If a specific item like "chicken burger" is found, we should stop
+      // searching for less specific terms like "burger"
+      // We can achieve this by breaking the loop, as the items are sorted.
+      if (matches.length > 0) {
+        break; 
+      }
     }
-  });
+  }
 
+  // Update orderItems based on the final counts
   result.orderItems = Object.keys(itemCounts).map(itemName => {
     const itemDetails = menuItems.find(item => item.name === itemName);
     return {
