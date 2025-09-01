@@ -129,7 +129,7 @@ async function connectToWhatsApp() {
           return;
         }
         setQrCode(url);
-        console.log('QR code is now available at http://localhost:3000/qr');
+        console.log('QR code is now available at the /qr endpoint of your service.');
       });
     }
   });
