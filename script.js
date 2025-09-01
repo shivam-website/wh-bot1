@@ -53,7 +53,7 @@ function loadMenuConfig() {
       breakfast: ["Continental Breakfast - ₹500", "Full English Breakfast - ₹750", "Pancakes with Maple Syrup - ₹450"],
       lunch: ["Grilled Chicken Sandwich - ₹650", "Margherita Pizza - ₹800", "Vegetable Pasta - ₹550"],
       dinner: ["Grilled Salmon - ₹1200", "Beef Steak - ₹1500", "Vegetable Curry - ₹600"],
-      roomService: ["Club Sandwich - ₹450", "Chicken Burger - ₹550", "Chocolate Lava Cake - ₹350"]
+      roomService: ["Club Sandwich - ₹450", "Chicken Burger - ₹550", "Burger - ₹200", "Chocolate Lava Cake - ₹350"]
     },
     hours: {
       breakfast: "7:00 AM - 10:30 AM",
@@ -440,12 +440,8 @@ function parseUserMessage(message, currentState) {
         itemCounts[item.name] = (itemCounts[item.name] || 0) + quantity;
       }
       
-      // If a specific item like "chicken burger" is found, we should stop
-      // searching for less specific terms like "burger"
-      // We can achieve this by breaking the loop, as the items are sorted.
-      if (matches.length > 0) {
-        break; 
-      }
+      // We will continue the loop to find all matches, not just the first one.
+      // The sorting ensures we prioritize specific items.
     }
   }
 
@@ -566,7 +562,7 @@ async function placeOrder(sock, from, state) {
   ).join(', ');
   
   await sock.sendMessage(from, { 
-    text: `✅ Order confirmed! #${orderId}\n\nYour order (${orderSummaryForGuest}) has been placed and will arrive shortly to room ${state.room}. Thank you!` 
+    text: `✅ Order confirmed! #${orderId}\\n\\nYour order (${orderSummaryForGuest}) has been placed and will arrive shortly to room ${state.room}. Thank you!` 
   });
 
   // Ask for rating after a delay (simulated with setTimeout)
