@@ -1,15 +1,14 @@
 const {
   default: makeWASocket,
+  useMultiFileAuthState,
   DisconnectReason
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
-const qrcode = require('qrcode-terminal');
+const qrcode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const { app, setClient } = require('./server');
-const { usePostgresAuthState } = require('./authDB');
-const db = require('./db');
 
 // Hotel Configuration
 const hotelConfig = {
@@ -39,308 +38,307 @@ function loadMenuConfig() {
       };
     }
   } catch (error) {
-    console.error('Error loading menu config:', error);
+    console.error("Failed to load menu configuration:", error);
+    return null;
   }
-
-  // Fallback to default menu
-  return {
-    menu: {
-      breakfast: ["Continental Breakfast - ₹500", "Full English Breakfast - ₹750", "Pancakes with Maple Syrup - ₹450"],
-      lunch: ["Grilled Chicken Sandwich - ₹650", "Margherita Pizza - ₹800", "Vegetable Pasta - ₹550"],
-      dinner: ["Grilled Salmon - ₹1200", "Beef Steak - ₹1500", "Vegetable Curry - ₹600"],
-      roomService: ["Club Sandwich - ₹450", "Chicken Burger - ₹550", "Chocolate Lava Cake - ₹350"]
-    },
-    hours: {
-      breakfast: "7:00 AM - 10:30 AM",
-      lunch: "12:00 PM - 3:00 PM",
-      dinner: "6:30 PM - 11:00 PM",
-      roomService: "24/7"
-    }
-  };
 }
 
-// Function to get fresh menu items (will reload menu every time)
-function getAllMenuItems() {
-  const currentMenuConfig = loadMenuConfig();
+const logger = pino({ level: 'info' });
 
-  return Object.values(currentMenuConfig.menu)
-    .flat()
-    .map(item => {
-      const parts = item.split(' - ');
-      const name = parts[0] ? parts[0].trim() : 'Unknown Item';
-      let price = 0;
-
-      if (parts[1]) {
-        const priceMatch = parts[1].match(/\d+/);
-        if (priceMatch) {
-          price = parseInt(priceMatch[0]);
-        }
-      }
-
-      return {
-        name: name.toLowerCase(),
-        full_name: name,
-        price: price
-      };
-    })
-    .filter(item => item.name !== 'unknown item');
+// Function to handle actions after connection is opened
+async function handleOpenConnection(sock) {
+  console.log("✅ WhatsApp connection established successfully!");
+  // You can add any initialization code here that should run after connection
+  // For example, send a message to yourself that the bot is online:
+  try {
+    await sock.sendMessage(hotelConfig.adminNumber, { 
+      text: `🤖 Hotel Bot is now online and ready to serve guests!` 
+    });
+  } catch (error) {
+    console.log("Could not send startup message to admin:", error);
+  }
 }
 
-// Global variable for Baileys socket
-let sock = null;
+async function connectToWhatsApp() {
+  const { state, saveCreds } = await useMultiFileAuthState('auth');
 
-// Main function to start the bot connection
-async function startBotConnection() {
-  // Use the custom Postgres auth state
-  const { state, saveCreds } = await usePostgresAuthState('main-session');
-
-  sock = makeWASocket({
-    auth: state,
-    logger: pino({ level: process.env.PINO_LOG_LEVEL || 'silent' }),
+  const sock = makeWASocket({
+    logger,
+    printQRInTerminal: false,
+    browser: ['Hotel Bot', 'Safari', '1.0'],
+    auth: state
   });
 
   setClient(sock);
 
-  // Handle connection updates
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log('connection closed due to ', lastDisconnect.error, ', reconnecting ', shouldReconnect);
-      if (shouldReconnect) {
-        startBotConnection();
+      let reason = new Boom(lastDisconnect.error).output.statusCode;
+      if (reason === DisconnectReason.badSession) {
+        console.log(`Bad Session File, Please Delete and Scan Again`);
+        await connectToWhatsApp();
+      } else if (reason === DisconnectReason.connectionClosed) {
+        console.log("Connection closed, reconnecting...");
+        await connectToWhatsApp();
+      } else if (reason === DisconnectReason.connectionLost) {
+        console.log("Connection Lost from Server, reconnecting...");
+        await connectToWhatsApp();
+      } else if (reason === DisconnectReason.loggedOut) {
+        console.log(`Device Logged Out, Please Delete and Scan Again.`);
+        await connectToWhatsApp();
+      } else if (reason === DisconnectReason.restartRequired) {
+        console.log("Restart required, reconnecting...");
+        await connectToWhatsApp();
+      } else if (reason === DisconnectReason.timedOut) {
+        console.log("Connection timed out, reconnecting...");
+        await connectToWhatsApp();
+      } else {
+        sock.end(`Unknown DisconnectReason: ${reason}|${lastDisconnect.error}`);
       }
     } else if (connection === 'open') {
-      console.log('✅ WhatsApp Bot Ready');
+      console.log('Opened connection');
+      await handleOpenConnection(sock);
     }
+
+    // Log the QR code as a URL
     if (qr) {
-      qrcode.generate(qr, { small: true });
+      console.log('To scan, copy this link and paste into your browser:');
+      qrcode.toDataURL(qr, (err, url) => {
+        if (err) {
+          console.error('Failed to generate QR code URL:', err);
+          return;
+        }
+        console.log(url);
+      });
+    }
+  });
+
+  sock.ev.on('messages.upsert', async (m) => {
+    if (m.messages && m.messages.length > 0) {
+      const msg = m.messages[0];
+      if (msg.key.fromMe) return; // Don't process my own messages
+      if (processedMessageIds.has(msg.key.id)) return; // Avoid processing duplicates
+      processedMessageIds.add(msg.key.id);
+
+      const senderId = msg.key.remoteJid;
+      const messageText = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+
+      if (!userStates.has(senderId)) {
+        userStates.set(senderId, {
+          state: 'initial',
+          room: null,
+          tempOrder: null
+        });
+        console.log(`New user state created for: ${senderId}`);
+      }
+
+      const userState = userStates.get(senderId);
+
+      // Check for welcome message or keyword
+      if (['hi', 'hello', 'hey', 'start'].includes(messageText.toLowerCase())) {
+        await handleInitialState(sock, senderId);
+      } else {
+        await handleStateBasedResponse(sock, senderId, messageText, userState);
+      }
     }
   });
 
   sock.ev.on('creds.update', saveCreds);
 
-  sock.ev.on('messages.upsert', async m => {
-    const msg = m.messages[0];
-    if (!msg.message || msg.key.fromMe || msg.key.remoteJid.endsWith('@g.us')) return;
+  return sock;
+}
 
-    // Check if message ID has been processed
-    if (processedMessageIds.has(msg.key.id)) {
-      return;
-    }
-    processedMessageIds.add(msg.key.id);
-    if (processedMessageIds.size > 100) {
-      const oldId = processedMessageIds.values().next().value;
-      processedMessageIds.delete(oldId);
-    }
-
-    const from = msg.key.remoteJid;
-    // 🎯 Handle rating button responses
-    if (msg.message?.buttonsResponseMessage) {
-      const buttonId = msg.message.buttonsResponseMessage.selectedButtonId;
-
-      if (buttonId.startsWith("rate_")) {
-        const rating = buttonId.split("_")[1]; // 1–5
-        let state = userStates.get(from);
-
-        if (state?.awaitingRating) {
-          console.log(`⭐ Guest ${from} rated ${rating} stars for Order ${state.lastOrderId}`);
-
-          await sock.sendMessage(from, { text: `⭐ Thanks for rating us ${rating} stars!` });
-
-          // Optionally forward rating to admin
-          await sock.sendMessage(hotelConfig.adminNumber, {
-            text: `📩 Guest ${from} rated Order #${state.lastOrderId}: ${rating} ⭐`
-          });
-
-          state.awaitingRating = false;
-          userStates.set(from, state);
-        }
-        return; // stop further processing
-      }
-    }
-
-    const userMsg = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-
-    if (!userMsg) return;
-    console.log(`Received message from ${from}: ${userMsg}`);
-
-    let state = userStates.get(from) || { awaitingConfirmation: false, items: [], room: null };
-    // Ensure state.items is always an array
-
-    if (state.awaitingConfirmation) {
-      const lowerUserMsg = userMsg.toLowerCase();
-      if (lowerUserMsg.includes('yes') || lowerUserMsg.includes('confirm') || lowerUserMsg.includes('place order')) {
-        await placeOrder(sock, from, state);
-        userStates.delete(from);
-        return;
-      }
-      if (lowerUserMsg.includes('no') || lowerUserMsg.includes('cancel')) {
-        await sock.sendMessage(from, { text: "Order cancelled. Please place a new order when ready." });
-        state.awaitingConfirmation = false;
-        state.items = [];
-        userStates.set(from, state);
-        return;
-      }
-    }
-
-    if (userMsg.toLowerCase() === 'reset') {
-      userStates.delete(from);
-      await sock.sendMessage(from, { text: "🔄 Chat reset. How may I assist you today?" });
-      return;
-    }
-
-    const parsed = parseUserMessage(userMsg, state);
-
-    if (parsed.roomNumber) {
-      state.room = parsed.roomNumber;
-    }
-
-    if (parsed.orderItems && parsed.orderItems.length > 0) {
-      state.items = parsed.orderItems;
-    }
-
-    // Handle different intents
-    if (parsed.intent === 'order') {
-      await handleOrderIntent(sock, from, state);
-    } else if (parsed.intent === 'menu') {
-      await sendFullMenu(sock, from);
-    } else if (parsed.intent === 'greeting') {
-      await sock.sendMessage(from, { text: `Hello! Welcome to ${hotelConfig.name}! 🏨\nTO order a food first send the room number to bot and then send the food like order a momo ` });
-    } else {
-      await sock.sendMessage(from, { text: `I'm here to help you at ${hotelConfig.name}! 😊\n\nYou can type "menu" to see food options or "room [number]" to start an order.` });
-    }
-
-    userStates.set(from, state);
+/**
+ * Handles the initial state of the conversation, greeting the user and asking for their room number.
+ */
+async function handleInitialState(sock, from) {
+  const welcomeMessage = `Hello! I'm the Hotel Welcome Bot. I'm here to assist you with your needs during your stay.\n\nPlease enter your room number to get started.`;
+  await sock.sendMessage(from, { text: welcomeMessage });
+  userStates.set(from, { ...userStates.get(from),
+    state: 'awaitingRoomNumber'
   });
 }
 
 /**
- * Parse user message without AI - using pattern matching
+ * Handles responses based on the current state of the user's conversation.
  */
-function parseUserMessage(message, currentState) {
-  const text = message.toLowerCase().trim();
-  console.log('Processing message:', text);
+async function handleStateBasedResponse(sock, from, message, state) {
+  const command = message.toLowerCase().trim();
 
-  const result = {
-    intent: 'unknown',
-    roomNumber: null,
-    orderItems: []
-  };
-
-  if (/^\d{3,4}$/.test(text) && currentState && currentState.items && currentState.items.length > 0) {
-    result.roomNumber = text;
-    result.intent = 'provide_room_only';
-    console.log('Special case: Room number provided for existing order:', result.roomNumber);
-    return result;
+  switch (state.state) {
+    case 'awaitingRoomNumber':
+      await handleRoomNumber(sock, from, command, state);
+      break;
+    case 'mainMenu':
+      await handleMainMenu(sock, from, command, state);
+      break;
+    case 'orderingFood':
+      await handleFoodOrdering(sock, from, command, state);
+      break;
+    case 'awaitingRating':
+      await handleRating(sock, from, command, state);
+      break;
+    default:
+      await sock.sendMessage(from, {
+        text: "I didn't understand that. Please type 'Hi' to start over."
+      });
+      break;
   }
-
-  const roomMatch = text.match(/(room|rm|#|\b)(\d{3,4})\b/) || text.match(/\b(\d{3,4})\b/);
-  if (roomMatch) {
-    result.roomNumber = roomMatch[2] || roomMatch[1];
-    console.log('Found room:', result.roomNumber);
-  }
-
-  const itemCounts = {};
-  const menuItems = getAllMenuItems();
-  console.log('Available menu items:', menuItems.map(item => item.name));
-
-  menuItems.forEach(item => {
-    const itemRegex = new RegExp(`(?:(\\d+|one|two|a)\\s+)?\\b(${item.name})\\b`, 'gi');
-    const matches = [...text.matchAll(itemRegex)];
-
-    if (matches.length > 0) {
-      console.log('Found match for:', item.name, 'matches:', matches);
-    }
-
-    for (const match of matches) {
-      let quantity = 1;
-      if (match[1]) {
-        if (match[1].toLowerCase() === 'one' || match[1].toLowerCase() === 'a') {
-          quantity = 1;
-        } else if (match[1].toLowerCase() === 'two') {
-          quantity = 2;
-        } else {
-          quantity = parseInt(match[1]);
-        }
-      }
-      itemCounts[item.name] = (itemCounts[item.name] || 0) + quantity;
-    }
-  });
-
-  result.orderItems = Object.keys(itemCounts).map(itemName => {
-    const itemDetails = menuItems.find(item => item.name === itemName);
-    return {
-      name: itemDetails.name,
-      full_name: itemDetails.full_name,
-      quantity: itemCounts[itemName]
-    };
-  });
-
-  console.log('Parsed order items:', result.orderItems);
-
-  const orderKeywords = ['order', 'get', 'like', 'have', 'bring me', 'want', 'need'];
-  if (orderKeywords.some(keyword => text.includes(keyword)) || result.orderItems.length > 0) {
-    result.intent = 'order';
-  } else if (text.includes('menu') || text.includes('food') || text.includes('what do you have')) {
-    result.intent = 'menu';
-  } else if (text.includes('hello') || text.includes('hi') || text.includes('hey')) {
-    result.intent = 'greeting';
-  } else if (result.roomNumber) {
-    result.intent = 'provide_room_only';
-  }
-
-  return result;
 }
 
 /**
- * Handle order intent
+ * Handles the response when the bot is awaiting a room number.
  */
-async function handleOrderIntent(sock, from, state) {
-  if (!state.items) {
-    state.items = [];
-  }
-
-  if (!state.room) {
-    await sock.sendMessage(from, { text: "I'd be happy to help with your order! 🍽️\n\nCould you please tell me your room number first? (Example: 'Room 105')" });
+async function handleRoomNumber(sock, from, message, state) {
+  const roomNumber = parseInt(message);
+  if (isNaN(roomNumber)) {
+    await sock.sendMessage(from, {
+      text: "That doesn't look like a valid room number. Please enter a valid room number."
+    });
     return;
   }
 
-  if (state.items.length === 0) {
-    await sock.sendMessage(from, { text: "What would you like to order from our menu? You can say something like '2 pizzas and 1 coffee' or type 'menu' to see options." });
-    return;
-  }
-
-  const orderSummary = state.items.map(item => `${item.quantity} x ${item.full_name}`).join(', ');
+  userStates.set(from, { ...state,
+    state: 'mainMenu',
+    room: roomNumber
+  });
+  console.log(`User ${from} is now in room ${roomNumber}.`);
+  const welcomeMessage = `Thank you! You are now checked into room *${roomNumber}*.\n\nHow can I help you today? Please choose an option:\n\n1. 📋 View Menu\n2. 🛎️ Request Service\n3. 📞 Call Reception\n4. 📅 Check-in/out times`;
   await sock.sendMessage(from, {
-    text: `Perfect! Let me confirm your order:\n\n🏨 Room: ${state.room}\n📦 Order: ${orderSummary}\n\nShould I place this order? Please reply 'yes' to confirm or 'no' to cancel.`
+    text: welcomeMessage
+  });
+}
+
+async function handleMainMenu(sock, from, command, state) {
+  switch (command) {
+    case '1':
+    case 'view menu':
+    case 'menu':
+      await sendFullMenu(sock, from);
+      break;
+    case '2':
+    case 'request service':
+    case 'service':
+      await requestService(sock, from, state);
+      break;
+    case '3':
+    case 'call reception':
+    case 'reception':
+      await callReception(sock, from);
+      break;
+    case '4':
+    case 'check-in/out times':
+    case 'times':
+      await sendCheckInOutTimes(sock, from);
+      break;
+    default:
+      await sock.sendMessage(from, {
+        text: "Please select a valid option from the list."
+      });
+      break;
+  }
+}
+
+async function handleFoodOrdering(sock, from, command, state) {
+  if (command === 'cancel') {
+    userStates.set(from, { ...state,
+      state: 'mainMenu',
+      tempOrder: null
+    });
+    await sock.sendMessage(from, {
+      text: "Order cancelled. What else can I help with?"
+    });
+    return;
+  }
+
+  // Load menu dynamically to ensure we always have the latest
+  const currentMenuConfig = loadMenuConfig();
+  if (!currentMenuConfig) {
+    await sock.sendMessage(from, {
+      text: "Sorry, the menu is currently unavailable. Please try again later."
+    });
+    return;
+  }
+
+  let tempOrder = state.tempOrder || {};
+
+  const menuItem = Object.values(currentMenuConfig.menu).flatMap(items => items).find(item => item.toLowerCase() === command);
+
+  if (menuItem) {
+    tempOrder[menuItem] = (tempOrder[menuItem] || 0) + 1;
+    userStates.set(from, { ...state,
+      tempOrder: tempOrder
+    });
+
+    const orderSummary = Object.keys(tempOrder).map(item => `${item} x ${tempOrder[item]}`).join(', ');
+    await sock.sendMessage(from, {
+      text: `Added *${menuItem}* to your order. Your current order is: ${orderSummary}.\n\nReply with 'done' to confirm or add another item.`
+    });
+  } else if (command === 'done') {
+    if (Object.keys(tempOrder).length > 0) {
+      await placeOrder(sock, from, state);
+      userStates.set(from, { ...state,
+        state: 'mainMenu',
+        tempOrder: null
+      });
+    } else {
+      await sock.sendMessage(from, {
+        text: "Your order is empty. Please add items or type 'cancel'."
+      });
+    }
+  } else {
+    await sock.sendMessage(from, {
+      text: "Sorry, I couldn't find that item on the menu. Please select a valid item or type 'done' to confirm."
+    });
+  }
+}
+
+async function handleRating(sock, from, command, state) {
+  const rating = parseInt(command);
+  if (isNaN(rating) || rating < 1 || rating > 5) {
+    await sock.sendMessage(from, {
+      text: "Please provide a rating between 1 and 5."
+    });
+    return;
+  }
+
+  // Send rating to admin
+  await sock.sendMessage(hotelConfig.adminNumber, {
+    text: `⭐ Rating Received from Room ${state.room}: ${rating}/5`
   });
 
-  state.awaitingConfirmation = true;
-  userStates.set(from, state);
+  await sock.sendMessage(from, {
+    text: "Thank you for your feedback! It helps us improve our service."
+  });
+
+  userStates.set(from, { ...state,
+    state: 'mainMenu'
+  });
 }
 
 /**
- * Places the order by saving it to a JSON file and notifying the admin.
+ * Places the final order for the guest.
  */
 async function placeOrder(sock, from, state) {
-  if (!state.room || state.items.length === 0) {
-    await sock.sendMessage(from, { text: "Sorry, I need both room number and order details to place your order." });
-    return;
-  }
-
-  const orders = JSON.parse(fs.readFileSync(hotelConfig.databaseFile));
-  const orderId = Date.now();
+  const orderId = `ORD-${Date.now()}`;
   const newOrder = {
-    id: orderId,
+    orderId,
     room: state.room,
-    items: state.items.map(item => ({ name: item.full_name, quantity: item.quantity })),
-    guestNumber: from,
-    status: "Pending",
+    items: Object.keys(state.tempOrder).map(item => ({
+      name: item,
+      quantity: state.tempOrder[item]
+    })),
+    status: 'pending',
     timestamp: new Date().toISOString()
   };
 
-  orders.push(newOrder);
+  // Save order to a file (simple persistent storage)
+  let orders = {};
+  if (fs.existsSync(hotelConfig.databaseFile)) {
+    orders = JSON.parse(fs.readFileSync(hotelConfig.databaseFile, 'utf8'));
+  }
+  orders[orderId] = newOrder;
   fs.writeFileSync(hotelConfig.databaseFile, JSON.stringify(orders, null, 2));
 
   // Notify admin
@@ -354,28 +352,76 @@ async function placeOrder(sock, from, state) {
   await sock.sendMessage(from, {
     text: `✅ Order confirmed! #${orderId}\n\nYour order has been placed and will arrive shortly. Thank you!`
   });
+
+  // Ask for rating after a delay
+  setTimeout(async () => {
+    await sock.sendMessage(from, {
+      text: "Hope you enjoyed your meal! Please rate our service from 1-5."
+    });
+    userStates.set(from, { ...state,
+      state: 'awaitingRating'
+    });
+  }, 10000); // 10-second delay for example
 }
 
 /**
  * Sends the full hotel menu to the guest.
  */
 async function sendFullMenu(sock, number) {
+  // Reload menu fresh every time to ensure latest changes
   const currentMenuConfig = loadMenuConfig();
+  if (!currentMenuConfig) {
+    await sock.sendMessage(number, {
+      text: "Sorry, the menu is currently unavailable. Please try again later."
+    });
+    return;
+  }
 
   let text = `📋 Our Menu:\n\n`;
   for (const category in currentMenuConfig.menu) {
     text += `🍽 ${category.toUpperCase()} (${currentMenuConfig.hours[category]}):\n`;
     text += currentMenuConfig.menu[category].map(item => `• ${item}`).join('\n') + '\n\n';
   }
-  text += "To order, just message: \"Room [your number], [your order]\"\nExample: \"Room 105, 2 pizzas and 1 coffee\"";
+  text += "To order, please type the name of the item. Type 'done' when you are finished.\n\n*Example:* 'Pasta'";
 
-  await sock.sendMessage(number, { text: text });
+  await sock.sendMessage(number, {
+    text: text
+  });
+
+  userStates.set(number, { ...userStates.get(number),
+    state: 'orderingFood'
+  });
 }
 
-// Start the server
-app.listen(3000, () => {
-  console.log('🌐 Dashboard running at http://localhost:3000/admin.html');
-});
+/**
+ * Notifies the admin about a service request.
+ */
+async function requestService(sock, from, state) {
+  await sock.sendMessage(hotelConfig.adminNumber, {
+    text: `🛎️ Service Request from Room ${state.room}`
+  });
+  await sock.sendMessage(from, {
+    text: "Your request has been sent to the front desk. Someone will be with you shortly."
+  });
+}
 
-// Start the bot
-startBotConnection();
+/**
+ * Provides the guest with the reception contact number.
+ */
+async function callReception(sock, from) {
+  await sock.sendMessage(from, {
+    text: `📞 You can call reception by dialing extension *${hotelConfig.receptionExtension}*.`
+  });
+}
+
+/**
+ * Provides the guest with the check-in and check-out times.
+ */
+async function sendCheckInOutTimes(sock, from) {
+  await sock.sendMessage(from, {
+    text: `📅 Check-in time is *${hotelConfig.checkInTime}* and check-out time is *${hotelConfig.checkOutTime}*.`
+  });
+}
+
+// Start the WhatsApp bot
+connectToWhatsApp();
