@@ -165,7 +165,7 @@ let sock = null;
 // Main function to start the bot connection
 async function startBotConnection() {
   await connectToDatabase();
-  const creds = await loadCreds();
+  const creds = await loadCreds() || {}; // <== FIX: Provide an empty object if no credentials are found
 
   sock = makeWASocket({
     auth: { creds },
