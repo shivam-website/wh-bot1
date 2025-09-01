@@ -15,7 +15,8 @@
 "fs": "^0.0.1-security",
 "path": "^0.12.7",
 "sequelize": "^6.37.1",
-"mysql2": "^3.9.7"
+"mysql2": "^3.9.7",
+"cors": "^2.8.5"
 },
 "keywords": [],
 "author": "Shivam",
