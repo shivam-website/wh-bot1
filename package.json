@@ -1,0 +1,30 @@
+{
+    "name": "hotel-management-system",
+    "version": "2.0.0",
+    "description": "Multi-hotel management system with WhatsApp integration",
+    "main": "Combined.js",
+    "scripts": {
+        "start": "node Combined.js",
+        "dev": "nodemon Combined.js"
+    },
+    "dependencies": {
+        "bcryptjs": "^2.4.3",
+        "cors": "^2.8.5",
+        "express": "^4.18.2",
+        "qrcode-terminal": "^0.12.0",
+        "socket.io": "^4.8.1",
+        "whatsapp-web.js": "^1.23.0"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.1"
+    },
+    "keywords": [
+        "hotel",
+        "management",
+        "whatsapp",
+        "bot",
+        "multi-tenant"
+    ],
+    "author": "Hotel Management System",
+    "license": "MIT"
+}
