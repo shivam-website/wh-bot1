@@ -438,14 +438,18 @@
   <!-- Login Page -->
   <div id="login-container" class="login-container">
     <div class="login-card">
-      <h2><i class="fas fa-lock"></i> Dashboard Login</h2>
-      <p>Please enter your credentials to access the manager dashboard.</p>
+      <h2><i class="fas fa-lock"></i> Hotel Admin Login</h2>
+      <p>Please enter your hotel credentials to access the dashboard.</p>
       <form id="login-form" class="login-form" onsubmit="handleLogin(event)">
+        <input type="text" id="phone" placeholder="Hotel Phone Number" required />
         <input type="text" id="username" placeholder="Username" required />
         <input type="password" id="password" placeholder="Password" required />
         <button type="submit" class="btn btn-primary">Login</button>
       </form>
       <div id="login-error" class="error-message" style="display: none;"></div>
+      <div class="text-center mt-3">
+        <a href="superadmin.html" class="text-decoration-none">Super Admin Login</a>
+      </div>
     </div>
   </div>
 
@@ -573,9 +577,8 @@
 
   <script>
     // --- Login and Security Logic ---
-    const LOGIN_USERNAME = "manager";
-    const LOGIN_PASSWORD = "password123";
     const IS_LOGGED_IN_KEY = "isLoggedIn";
+    const HOTEL_DATA_KEY = "hotelData";
 
     const loginContainer = document.getElementById('login-container');
     const dashboardContainer = document.getElementById('dashboard-container');
@@ -583,16 +586,26 @@
     
     // Check if the user is already logged in on page load
     function checkLoginStatus() {
-      if (localStorage.getItem(IS_LOGGED_IN_KEY) === 'true') {
-        showDashboard();
+      const isLoggedIn = localStorage.getItem(IS_LOGGED_IN_KEY);
+      const hotelData = localStorage.getItem(HOTEL_DATA_KEY);
+      
+      if (isLoggedIn === 'true' && hotelData) {
+        showDashboard(JSON.parse(hotelData));
       } else {
         showLogin();
       }
     }
     
-    function showDashboard() {
+    function showDashboard(hotelData) {
       loginContainer.style.display = 'none';
       dashboardContainer.style.display = 'block';
+      
+      // Update hotel info in header
+      document.querySelector('h1').innerHTML = `<i class="fas fa-hotel"></i> ${hotelData.hotelName} - Orders Dashboard`;
+      
+      // Store current hotel data for API calls
+      window.currentHotel = hotelData;
+      
       // Load the dashboard data after successful login
       loadOrders();
       loadCurrentMenu();
@@ -602,25 +615,45 @@
     function showLogin() {
       loginContainer.style.display = 'flex';
       dashboardContainer.style.display = 'none';
+      window.currentHotel = null;
     }
 
-    function handleLogin(event) {
+    async function handleLogin(event) {
       event.preventDefault();
+      const phone = document.getElementById('phone').value;
       const username = document.getElementById('username').value;
       const password = document.getElementById('password').value;
       
-      if (username === LOGIN_USERNAME && password === LOGIN_PASSWORD) {
-        localStorage.setItem(IS_LOGGED_IN_KEY, 'true');
-        showNotification('Login successful!', 'success');
-        showDashboard();
-      } else {
+      try {
+        const response = await fetch('/api/hotel/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ phone, username, password })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          localStorage.setItem(IS_LOGGED_IN_KEY, 'true');
+          localStorage.setItem(HOTEL_DATA_KEY, JSON.stringify(data.hotel));
+          showNotification('Login successful!', 'success');
+          showDashboard(data.hotel);
+        } else {
+          loginError.style.display = 'block';
+          loginError.textContent = data.error || 'Invalid username or password.';
+        }
+      } catch (error) {
         loginError.style.display = 'block';
-        loginError.textContent = 'Invalid username or password.';
+        loginError.textContent = 'Login failed. Please try again.';
       }
     }
     
     function handleLogout() {
       localStorage.removeItem(IS_LOGGED_IN_KEY);
+      localStorage.removeItem(HOTEL_DATA_KEY);
+      window.currentHotel = null;
       showNotification('Logged out successfully.', 'success');
       showLogin();
     }
@@ -648,7 +681,7 @@
       };
     }
 
-    // --- Original Dashboard Functions (Modified) ---
+    // --- Dashboard Functions ---
     let allOrders = [];
     let previousPendingIds = new Set();
 
@@ -668,14 +701,35 @@
 
     // Load orders from server
     async function loadOrders() {
+      if (!window.currentHotel) {
+        showNotification('Please login first', 'error');
+        return;
+      }
+      
       try {
-        const res = await fetch('/api/orders');
-        if (!res.ok) throw new Error('Failed to fetch orders');
-        allOrders = await res.json();
+        // Use GET request with query parameters
+        const response = await fetch(`/api/orders?phone=${encodeURIComponent(window.currentHotel.phone)}&username=${encodeURIComponent(window.currentHotel.username)}&password=${encodeURIComponent(document.getElementById('password')?.value || '')}`);
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            // Authentication failed - logout user
+            handleLogout();
+            showNotification('Session expired. Please login again.', 'error');
+            return;
+          }
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        allOrders = await response.json();
         renderOrders();
       } catch (err) {
+        console.error('Orders loading error:', err);
         showNotification('Error loading orders: ' + err.message, 'error');
-        console.error(err);
+        
+        // Show empty state
+        const container = document.getElementById('orderList');
+        container.innerHTML = '<div class="no-orders">Unable to load orders. Please try refreshing.</div>';
       }
     }
 
@@ -804,17 +858,32 @@
 
     // Update order status
     async function updateStatus(id, status) {
+      if (!window.currentHotel) return;
+      
       try {
-        const res = await fetch(`/api/orders/${id}/status`, {
+        const response = await fetch(`/api/orders/${id}/status`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status })
+          body: JSON.stringify({
+            phone: window.currentHotel.phone,
+            username: window.currentHotel.username,
+            password: document.getElementById('password')?.value || '',
+            status
+          })
         });
         
-        if (!res.ok) throw new Error('Failed to update status');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
         
-        showNotification(`Order #${id} status updated to ${status}`);
-        await loadOrders();
+        const result = await response.json();
+        
+        if (result.success) {
+          showNotification(`Order #${id} status updated to ${status}`);
+          await loadOrders();
+        } else {
+          throw new Error(result.error || 'Failed to update status');
+        }
       } catch (err) {
         showNotification('Error updating order: ' + err.message, 'error');
       }
@@ -822,16 +891,37 @@
 
     // Delete single order
     async function deleteOrder(id) {
+      if (!window.currentHotel) return;
+      
       showConfirmationModal(
         'Delete Order',
         'Are you sure you want to delete this order? This action cannot be undone.',
         async () => {
           try {
-            const res = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to delete order');
+            const response = await fetch(`/api/orders/${id}`, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                phone: window.currentHotel.phone,
+                username: window.currentHotel.username,
+                password: document.getElementById('password')?.value || ''
+              })
+            });
             
-            showNotification('Order deleted successfully');
-            await loadOrders();
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              showNotification('Order deleted successfully');
+              await loadOrders();
+            } else {
+              throw new Error(result.error || 'Failed to delete order');
+            }
           } catch (err) {
             showNotification('Error deleting order: ' + err.message, 'error');
           }
@@ -839,64 +929,34 @@
       );
     }
 
-    // Remove all done orders - FIXED
+    // Remove all done orders
     async function removeAllDone() {
+      if (!window.currentHotel) return;
+      
       showConfirmationModal(
         'Clear Completed Orders',
         'Are you sure you want to remove all completed and rejected orders?',
         async () => {
           try {
-            // Get all done and rejected orders
-            const ordersToDelete = allOrders.filter(order => 
-              order.status === 'Done' || order.status === 'Rejected'
-            );
-            
-            // Delete each order individually
-            const deletePromises = ordersToDelete.map(order => 
-              fetch(`/api/orders/${order.id}`, { method: 'DELETE' })
-            );
-            
-            // Wait for all delete operations to complete
-            const results = await Promise.allSettled(deletePromises);
-            
-            // Check if any deletions failed
-            const failedDeletes = results.filter(result => result.status === 'rejected');
-            
-            if (failedDeletes.length > 0) {
-              throw new Error(`Failed to delete ${failedDeletes.length} orders`);
-            }
-            
-            showNotification(`${ordersToDelete.length} completed orders removed successfully`);
-            await loadOrders(); // Refresh the order list
-          } catch (err) {
-            showNotification('Error removing orders: ' + err.message, 'error');
-          }
-        }
-      );
-    }
-    
-    // Alternative implementation if the server supports batch deletion
-    async function removeAllDoneAlternative() {
-      showConfirmationModal(
-        'Clear Completed Orders',
-        'Are you sure you want to remove all completed and rejected orders?',
-        async () => {
-          try {
-            const res = await fetch('/api/orders/cleanup', {
+            const response = await fetch('/api/orders/cleanup', {
               method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ statuses: ['Done', 'Rejected'] })
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                phone: window.currentHotel.phone,
+                username: window.currentHotel.username,
+                password: document.getElementById('password')?.value || '',
+                statuses: ['Done', 'Rejected']
+              })
             });
             
-            if (!res.ok) {
-              // If the cleanup endpoint doesn't exist, try individual deletion
-              if (res.status === 404) {
-                return await removeAllDone();
-              }
-              throw new Error('Failed to remove orders');
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
             }
             
-            showNotification('All completed orders removed successfully');
+            const result = await response.json();
+            showNotification(result.message || 'Orders cleaned up successfully');
             await loadOrders();
           } catch (err) {
             showNotification('Error removing orders: ' + err.message, 'error');
@@ -994,7 +1054,7 @@
       renderOrders();
     }
 
-    // --- Menu Management Functions (Unchanged) ---
+    // --- Menu Management Functions ---
     let currentMenuData = null;
 
     function toggleMenuEditor() {
@@ -1013,15 +1073,63 @@
     }
 
     async function loadMenuForEditing() {
+      if (!window.currentHotel) return;
+      
       try {
-        const response = await fetch('/api/menu');
-        const menuData = await response.json();
+        const response = await fetch(`/api/menu?phone=${encodeURIComponent(window.currentHotel.phone)}&username=${encodeURIComponent(window.currentHotel.username)}&password=${encodeURIComponent(document.getElementById('password')?.value || '')}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        let menuData = await response.json();
+        
+        // If no menu data exists, create default structure
+        if (!menuData || typeof menuData !== 'object') {
+          menuData = {
+            menu: {
+              breakfast: ["Continental Breakfast - ₹500", "Full English Breakfast - ₹750", "Pancakes with Maple Syrup - ₹450"],
+              lunch: ["Grilled Chicken Sandwich - ₹650", "Margherita Pizza - ₹800", "Vegetable Pasta - ₹550"],
+              dinner: ["Grilled Salmon - ₹1200", "Beef Steak - ₹1500", "Vegetable Curry - ₹600"],
+              roomService: ["Club Sandwich - ₹450", "Chicken Burger - ₹550", "Chocolate Lava Cake - ₹350"]
+            },
+            hours: {
+              breakfast: "7:00 AM - 10:30 AM",
+              lunch: "12:00 PM - 3:00 PM",
+              dinner: "6:30 PM - 11:00 PM",
+              roomService: "24/7"
+            }
+          };
+        }
+        
+        // Ensure menu and hours properties exist
+        if (!menuData.menu || typeof menuData.menu !== 'object') {
+          menuData.menu = {
+            breakfast: [], lunch: [], dinner: [], roomService: []
+          };
+        }
+        
+        if (!menuData.hours || typeof menuData.hours !== 'object') {
+          menuData.hours = {
+            breakfast: "7:00 AM - 10:30 AM",
+            lunch: "12:00 PM - 3:00 PM",
+            dinner: "6:30 PM - 11:00 PM",
+            roomService: "24/7"
+          };
+        }
+        
         currentMenuData = menuData;
         
         const categoriesContainer = document.getElementById('menuCategories');
         categoriesContainer.innerHTML = '';
         
-        for (const [category, items] of Object.entries(menuData.menu)) {
+        // Define default categories to ensure they always exist
+        const defaultCategories = ['breakfast', 'lunch', 'dinner', 'roomService'];
+        
+        for (const category of defaultCategories) {
+          const items = menuData.menu[category] || [];
+          const hours = menuData.hours[category] || "Not specified";
+          
           const categoryDiv = document.createElement('div');
           categoryDiv.className = 'menu-category';
           categoryDiv.innerHTML = `
@@ -1045,14 +1153,15 @@
             </div>
             <div>
               <label>Service Hours:</label>
-              <input type="text" class="hours-input" value="${menuData.hours[category]}" 
+              <input type="text" class="hours-input" value="${hours}" 
                       id="hours-${category}" placeholder="e.g., 7:00 AM - 10:30 AM">
             </div>
           `;
           categoriesContainer.appendChild(categoryDiv);
         }
       } catch (error) {
-        showNotification('Error loading menu: ' + error.message, 'error');
+        console.error('Menu editing error:', error);
+        showNotification('Error loading menu for editing: ' + error.message, 'error');
       }
     }
 
@@ -1069,7 +1178,7 @@
         itemsContainer.innerHTML = currentMenuData.menu[category].map((item, index) => `
           <div class="menu-item-editor">
             <input type="text" value="${item}" data-category="${category}" data-index="${index}" 
-                   placeholder="Item name - Price">
+                  placeholder="Item name - Price">
             <button class="btn btn-danger btn-sm" onclick="removeMenuItem('${category}', ${index})">
               <i class="fas fa-trash"></i>
             </button>
@@ -1094,7 +1203,7 @@
       itemsContainer.innerHTML = currentMenuData.menu[category].map((item, newIndex) => `
         <div class="menu-item-editor">
           <input type="text" value="${item}" data-category="${category}" data-index="${newIndex}" 
-                 placeholder="Item name - Price">
+                placeholder="Item name - Price">
           <button class="btn btn-danger btn-sm" onclick="removeMenuItem('${category}', ${newIndex})">
             <i class="fas fa-trash"></i>
           </button>
@@ -1103,6 +1212,8 @@
     }
 
     async function saveMenu() {
+      if (!window.currentHotel) return;
+      
       try {
         for (const category of Object.keys(currentMenuData.menu)) {
           const hoursInput = document.getElementById(`hours-${category}`);
@@ -1114,7 +1225,13 @@
         const response = await fetch('/api/menu', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(currentMenuData)
+          body: JSON.stringify({
+            phone: window.currentHotel.phone,
+            username: window.currentHotel.username,
+            password: document.getElementById('password')?.value || '',
+            menu: currentMenuData.menu,
+            hours: currentMenuData.hours
+          })
         });
         
         if (response.ok) {
@@ -1130,9 +1247,40 @@
     }
 
     async function loadCurrentMenu() {
+      if (!window.currentHotel) return;
+      
       try {
-        const response = await fetch('/api/menu');
+        const response = await fetch(`/api/menu?phone=${encodeURIComponent(window.currentHotel.phone)}&username=${encodeURIComponent(window.currentHotel.username)}&password=${encodeURIComponent(document.getElementById('password')?.value || '')}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const menuData = await response.json();
+        
+        // Check if menu data is valid
+        if (!menuData || typeof menuData !== 'object') {
+          throw new Error('Invalid menu data received from server');
+        }
+        
+        // Ensure menu and hours properties exist
+        if (!menuData.menu || typeof menuData.menu !== 'object') {
+          menuData.menu = {
+            breakfast: ["Continental Breakfast - ₹500", "Full English Breakfast - ₹750", "Pancakes with Maple Syrup - ₹450"],
+            lunch: ["Grilled Chicken Sandwich - ₹650", "Margherita Pizza - ₹800", "Vegetable Pasta - ₹550"],
+            dinner: ["Grilled Salmon - ₹1200", "Beef Steak - ₹1500", "Vegetable Curry - ₹600"],
+            roomService: ["Club Sandwich - ₹450", "Chicken Burger - ₹550", "Chocolate Lava Cake - ₹350"]
+          };
+        }
+        
+        if (!menuData.hours || typeof menuData.hours !== 'object') {
+          menuData.hours = {
+            breakfast: "7:00 AM - 10:30 AM",
+            lunch: "12:00 PM - 3:00 PM",
+            dinner: "6:30 PM - 11:00 PM",
+            roomService: "24/7"
+          };
+        }
         
         const menuDisplay = document.getElementById('currentMenu');
         menuDisplay.innerHTML = '';
@@ -1142,16 +1290,58 @@
           categoryDiv.className = 'menu-category-display';
           categoryDiv.innerHTML = `
             <h4><i class="fas fa-folder"></i> ${category.charAt(0).toUpperCase() + category.slice(1)} 
-              <span style="font-size: 0.8em; color: var(--gray); font-weight: normal;">(${menuData.hours[category]})</span>
+              <span style="font-size: 0.8em; color: var(--gray); font-weight: normal;">(${menuData.hours[category] || 'Not specified'})</span>
             </h4>
             <ul>
-              ${items.map(item => `<li>• ${item}</li>`).join('')}
+              ${Array.isArray(items) ? items.map(item => `<li>• ${item}</li>`).join('') : '<li>No items available</li>'}
             </ul>
           `;
           menuDisplay.appendChild(categoryDiv);
         }
       } catch (error) {
+        console.error('Menu loading error:', error);
         showNotification('Error loading menu: ' + error.message, 'error');
+        
+        // Show default menu as fallback
+        const menuDisplay = document.getElementById('currentMenu');
+        menuDisplay.innerHTML = `
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i> 
+            Using default menu. You can edit and save to create your custom menu.
+          </div>
+          <div class="menu-category-display">
+            <h4><i class="fas fa-folder"></i> Breakfast <span style="font-size: 0.8em; color: var(--gray); font-weight: normal;">(7:00 AM - 10:30 AM)</span></h4>
+            <ul>
+              <li>• Continental Breakfast - ₹500</li>
+              <li>• Full English Breakfast - ₹750</li>
+              <li>• Pancakes with Maple Syrup - ₹450</li>
+            </ul>
+          </div>
+          <div class="menu-category-display">
+            <h4><i class="fas fa-folder"></i> Lunch <span style="font-size: 0.8em; color: var(--gray); font-weight: normal;">(12:00 PM - 3:00 PM)</span></h4>
+            <ul>
+              <li>• Grilled Chicken Sandwich - ₹650</li>
+              <li>• Margherita Pizza - ₹800</li>
+              <li>• Vegetable Pasta - ₹550</li>
+            </ul>
+          </div>
+          <div class="menu-category-display">
+            <h4><i class="fas fa-folder"></i> Dinner <span style="font-size: 0.8em; color: var(--gray); font-weight: normal;">(6:30 PM - 11:00 PM)</span></h4>
+            <ul>
+              <li>• Grilled Salmon - ₹1200</li>
+              <li>• Beef Steak - ₹1500</li>
+              <li>• Vegetable Curry - ₹600</li>
+            </ul>
+          </div>
+          <div class="menu-category-display">
+            <h4><i class="fas fa-folder"></i> Room Service <span style="font-size: 0.8em; color: var(--gray); font-weight: normal;">(24/7)</span></h4>
+            <ul>
+              <li>• Club Sandwich - ₹450</li>
+              <li>• Chicken Burger - ₹550</li>
+              <li>• Chocolate Lava Cake - ₹350</li>
+            </ul>
+          </div>
+        `;
       }
     }
 
