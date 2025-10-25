@@ -15,7 +15,9 @@ const hotelConfig = {
   },
   databaseDir: path.join(__dirname, 'data'),
   checkInTime: "2:00 PM",
-  checkOutTime: "11:00 AM"
+  checkOutTime: "11:00 AM",
+  // Add auto-reconnect setting
+  autoReconnect: true
 };
 
 // Ensure data directory exists
@@ -253,14 +255,12 @@ app.post('/api/superadmin/hotels', (req, res) => {
     password: hashedPassword,
     phone,
     createdAt: new Date().toISOString(),
-    botConnected: true // Auto-connect on creation
+    botConnected: false, // Start as disconnected
+    autoConnect: true // New field to track auto-reconnect preference
   };
   
   hotels.push(newHotel);
   saveHotels(hotels);
-  
-  // Auto-start bot for new hotel
-  startBotForHotel(phone, hotelName);
   
   res.json({ success: true, hotel: { ...newHotel, password: undefined } });
 });
@@ -334,6 +334,13 @@ app.post('/api/superadmin/hotels/:id/connect', (req, res) => {
     return res.json({ success: true, connected: true, message: 'Bot already connected' });
   }
   
+  // Update hotel auto-connect preference
+  const hotelIndex = hotels.findIndex(h => h.id === parseInt(id));
+  if (hotelIndex !== -1) {
+    hotels[hotelIndex].autoConnect = true;
+    saveHotels(hotels);
+  }
+  
   // Start bot connection
   startBotForHotel(hotel.phone, hotel.hotelName);
   
@@ -350,15 +357,15 @@ app.post('/api/superadmin/hotels/:id/disconnect', (req, res) => {
     return res.status(404).json({ error: 'Hotel not found' });
   }
   
-  // Disconnect bot
-  disconnectBotForHotel(hotel.phone);
-  
-  // Update hotel connection status
+  // Update hotel auto-connect preference
   const hotelIndex = hotels.findIndex(h => h.id === parseInt(id));
   if (hotelIndex !== -1) {
-    hotels[hotelIndex].botConnected = false;
+    hotels[hotelIndex].autoConnect = false;
     saveHotels(hotels);
   }
+  
+  // Disconnect bot
+  disconnectBotForHotel(hotel.phone);
   
   res.json({ success: true, message: 'Bot disconnected successfully' });
 });
@@ -685,11 +692,12 @@ async function startBotForHotel(phone, hotelName) {
       console.log(`✅ WhatsApp Bot Ready for ${hotelName} (${phone})`);
       hotelQRs.delete(phone); // Clear QR after successful connection
       
-      // Update hotel connection status
+      // Update hotel connection status and auto-connect preference
       const hotels = loadHotels();
       const hotelIndex = hotels.findIndex(h => h.phone === phone);
       if (hotelIndex !== -1) {
         hotels[hotelIndex].botConnected = true;
+        hotels[hotelIndex].autoConnect = true; // Set auto-connect when successfully connected
         saveHotels(hotels);
       }
     }
@@ -1156,9 +1164,13 @@ function initializeHotelBots() {
   console.log(`🔄 Initializing bots for ${hotels.length} hotels...`);
   
   hotels.forEach(hotel => {
-    // Always try to start the bot for each hotel on server start
-    console.log(`🚀 Starting bot for ${hotel.hotelName} (${hotel.phone})`);
-    startBotForHotel(hotel.phone, hotel.hotelName);
+    // Only auto-start bots for hotels with autoConnect enabled
+    if (hotel.autoConnect) {
+      console.log(`🚀 Auto-starting bot for ${hotel.hotelName} (${hotel.phone}) - autoConnect: ${hotel.autoConnect}`);
+      startBotForHotel(hotel.phone, hotel.hotelName);
+    } else {
+      console.log(`⏸️  Skipping auto-start for ${hotel.hotelName} (${hotel.phone}) - autoConnect: ${hotel.autoConnect}`);
+    }
   });
 }
 
