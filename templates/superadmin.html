@@ -72,6 +72,16 @@
             background-color: #f8d7da;
             color: #721c24;
         }
+        
+        .status-auto {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .status-manual {
+            background-color: #fff3cd;
+            color: #856404;
+        }
     </style>
 </head>
 <body>
@@ -311,9 +321,14 @@
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <h5 class="card-title">${hotel.hotelName}</h5>
-                                    <span class="status-badge ${hotel.botStatus === 'connected' ? 'status-connected' : 'status-disconnected'}">
-                                        ${hotel.botStatus}
-                                    </span>
+                                    <div>
+                                        <span class="status-badge ${hotel.botStatus === 'connected' ? 'status-connected' : 'status-disconnected'}">
+                                            ${hotel.botStatus}
+                                        </span>
+                                        <span class="status-badge ${hotel.autoConnect ? 'status-auto' : 'status-manual'} ms-1">
+                                            ${hotel.autoConnect ? 'Auto' : 'Manual'}
+                                        </span>
+                                    </div>
                                 </div>
                                 
                                 <div class="mb-3">
@@ -346,6 +361,12 @@
                                     <button class="btn btn-sm btn-outline-danger" onclick="deleteHotel(${hotel.id})">
                                         <i class="fas fa-trash"></i> Delete
                                     </button>
+                                </div>
+                                
+                                <div class="mt-2 text-center">
+                                    <small class="text-muted">
+                                        ${hotel.autoConnect ? '🔄 Auto-reconnects on restart' : '⏸️ Manual connection only'}
+                                    </small>
                                 </div>
                             </div>
                         </div>
